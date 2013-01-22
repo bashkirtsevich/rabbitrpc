@@ -60,11 +60,11 @@ Example
 Dependencies
 ============
 
-* `pika <http://pypi.python.org/pypi/pika/0.9.8>`_: RabbitMQ communications library
+* `pika`: http://pypi.python.org/pypi/pika
 
 Tests Only:
-* `py.test <http://pypi.python.org/pypi/pika/0.9.8>`_: Python testing framework
-* `mock <http://pypi.python.org/pypi/pika/0.9.8>`_: Python testing framework
+* `pytest`: http://pypi.python.org/pypi/pytest
+* `mock`: http://http://pypi.python.org/pypi/mock
 
 =======
 License
