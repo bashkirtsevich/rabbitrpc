@@ -64,7 +64,7 @@ Dependencies
 
 Tests Only:
 * `pytest`: http://pypi.python.org/pypi/pytest
-* `mock`: http://http://pypi.python.org/pypi/mock
+* `mock`: http://pypi.python.org/pypi/mock
 
 =======
 License
