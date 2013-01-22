@@ -10,6 +10,7 @@ The framework is currently a work in progress.  The basic client and server have
 that make the framework 'feel' more like the method calls we're used to.  The next goal is to provide an additional
 layer on top of the existing client/server that will actually provide a dynamic interface which would allow you to
 do something like this on the client side::
+
         import rpcclient
 
         foo_class = rpcclient.RPCClient('remote_api_module_name', '/path/to/config/file')
@@ -28,6 +29,7 @@ hives for varying implementations of your API.
 Example
 ============
 **RPC Server Example::**
+
     from rabbitrpc import rabbitrpcserver
 
     def rpc_callback(body):
@@ -43,6 +45,7 @@ Example
         self.rpc_server.stop()
 
 **RPC Client Example::**
+
     from rabbitrpc import rabbitrpcclient
 
     rpc_client = rabbitrpcclient.RabbitRPCClient('RPCRequestQueue', reply_timeout=3000)
