@@ -37,7 +37,7 @@ Example
         # Call it
         # Return the results
 
-    self.rpc_server = rabbitrpcserver.RabbitRPCServer(self.rpcCallback, 'RPCRequestQueue')
+    self.rpc_server = rabbitrpcserver.RabbitRPCServer(rpc_callback, 'RPCRequestQueue')
 
     try:
         self.rpc_server.run()
