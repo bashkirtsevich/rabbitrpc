@@ -11,10 +11,10 @@ that make the framework 'feel' more like the method calls we're used to.  The ne
 layer on top of the existing client/server that will actually provide a dynamic interface which would allow you to
 do something like this on the client side::
 
-        import rpcclient
+    import rpcclient
 
-        foo_class = rpcclient.RPCClient('remote_api_module_name', '/path/to/config/file')
-        return_value = foo_class.remote_api_method()
+    foo_class = rpcclient.RPCClient('remote_api_module_name', '/path/to/config/file')
+    return_value = foo_class.remote_api_method()
 
 This will happen via server-side method registration.  The RPC server will keep track of all public methods and, at
 the request of the RPC client, provide a list of these methods and their parameters.  The RPC client will them use
