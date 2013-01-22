@@ -25,7 +25,7 @@
 
 import pytest
 import mock
-from lib.rabbitrpc import rabbitrpcclient
+from rabbitrpc import rabbitrpcclient
 
 
 class Test_Init(object):

@@ -26,7 +26,7 @@
 import mock
 import pytest
 import cPickle
-from lib.rabbitrpc import rabbitrpcserver
+from rabbitrpc import rabbitrpcserver
 
 
 class Test_Init(object):
