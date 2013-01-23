@@ -64,7 +64,7 @@ class RabbitRPCClient(object):
         :type reply_timeout: int
 
         """
-        self.log = logging.getLogger('lib.rabbitrpclient')
+        self.log = logging.getLogger('rabbitrpclient')
         self.queue = queue_name
         self._reply_timeout = reply_timeout / 1000
         self.exchange = exchange if exchange else config.DEFAULT_EXCHANGE
