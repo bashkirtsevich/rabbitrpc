@@ -1,6 +1,7 @@
 =========
 RabbitRPC
 =========
+:Author: Nick Whalen <nickw@mindstorm-networks.net>
 
 RabbitRPC is an RPC over AMQP framework.  It allows the user to worry less about how he's doing remote method calls and
 more about her/his actual code.  It was written to scratch an itch that developed during the development of a much
@@ -25,15 +26,15 @@ process it, and return the results via the RPC server library.
 Future plans also include the ability for the RPC workers to be versioned.  This means you can spin up separate worker
 hives for varying implementations of your API.
 
-============
+
 Example
-============
-**RPC Server Example:**
+=======
+**RPC Server Example**::
 
     from rabbitrpc import rabbitrpcserver
 
-    def rpc_callback(body):
-        # Based on the body content, select which method to call
+    def rpc_callback(method_info):
+        # Based on the data in method_info, select which method to call
         # Call it
         # Return the results
 
@@ -44,7 +45,7 @@ Example
     finally:
         self.rpc_server.stop()
 
-**RPC Client Example:**
+**RPC Client Example**::
 
     from rabbitrpc import rabbitrpcclient
 
@@ -56,17 +57,18 @@ Example
 
     print 'API REPLY: %s' % reply
 
-============
+
 Dependencies
 ============
 
 * `pika`: http://pypi.python.org/pypi/pika
 
-Tests Only:
+**Tests Only:**
+
 * `pytest`: http://pypi.python.org/pypi/pytest
 * `mock`: http://pypi.python.org/pypi/mock
 
-=======
+
 License
 =======
 Licensed under the Apache License, Version 2.0 (the "License");
