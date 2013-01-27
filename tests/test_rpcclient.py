@@ -25,12 +25,12 @@
 
 import pytest
 import mock
-from rabbitrpc import rabbitrpcclient
+from rabbitrpc import rpcclient
 
 
-class Test_Init(object):
+class Test__init__(object):
     """
-    Tests RabbitRPCClient's __init__ method.
+    Tests RPCClient's __init__ method.
     """
 
     def setup_method(self, method):
@@ -40,15 +40,30 @@ class Test_Init(object):
         :param method:
 
         """
-        self.localrpc = reload(rabbitrpcclient)
+        self.host = 'hostname'
+        self.port = 1234
+        self.vhost = 'b/b'
         self.queue = 'testRPC'
         self.timeout = 7000
 
-        self.localrpc.logging = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._configureConnection = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._connect = mock.MagicMock()
+        self.connection_settings = {
+            'host': self.host,
+            'port': self.port,
+            'virtual_host': self.vhost,
+        }
+        self.default_settings = {
+            'host': 'localhost',
+            'port': 5672,
+            'virtual_host': '/',
+        }
 
-        self.rpc = self.localrpc.RabbitRPCClient(self.queue, reply_timeout=self.timeout)
+        self.localrpc = reload(rpcclient)
+
+        self.localrpc.logging = mock.MagicMock()
+        self.localrpc.RPCClient._configureConnection = mock.MagicMock()
+        self.localrpc.RPCClient._connect = mock.MagicMock()
+
+        self.rpc = self.localrpc.RPCClient(self.queue, reply_timeout=self.timeout)
     #---
 
     def test_CreatesLoggerInstance(self):
@@ -76,6 +91,44 @@ class Test_Init(object):
         assert self.rpc.queue == self.queue
     #---
 
+    def test_SetsDefaultConnectionSettings(self):
+        """
+        Tests that __init__ sets the following default config:
+            host: localhost
+            port: 5672
+            virtual_host: /
+
+        """
+        assert self.rpc.connection_settings == self.default_settings
+    #---
+
+    def test_ProvidedConnectionSettingsOverrideDefaultConnectionSettings(self):
+        """
+        Tests that __init__ overrides the default connection settings if they are provided by the user.
+
+        """
+        rpc = self.localrpc.RPCClient(connection_settings=self.connection_settings)
+        assert rpc.connection_settings == self.connection_settings
+    #---
+
+    def test_RemovesUsernameFromConnectionSettings(self):
+        """
+        Tests that __init__ removes the username from the connection settings.
+
+        """
+        rpc = self.localrpc.RPCClient(connection_settings=self.connection_settings)
+        assert 'username' not in rpc.connection_settings
+    #---
+
+    def test_RemovesPasswordFromConnectionSettings(self):
+        """
+        Tests that __init__ removes the password from the connection settings.
+
+        """
+        rpc = self.localrpc.RPCClient(connection_settings=self.connection_settings)
+        assert 'password' not in rpc.connection_settings
+    #---
+
     def test_ReplyQueueDefaultsToNone(self):
         """
         Tests that __init__ sets reply_queue to None by default.
@@ -90,7 +143,7 @@ class Test_Init(object):
 
         """
         queue = 'Test123'
-        rpc = self.localrpc.RabbitRPCClient(self.queue, reply_queue=queue, reply_timeout=self.timeout)
+        rpc = self.localrpc.RPCClient(self.queue, reply_queue=queue, reply_timeout=self.timeout)
         assert rpc.reply_queue == queue
         #---
 
@@ -100,22 +153,21 @@ class Test_Init(object):
 
         """
         exchange = 'BobXchange'
-        rpc = rabbitrpcclient.RabbitRPCClient(self.queue, exchange=exchange)
+        rpc = rpcclient.RPCClient(self.queue, exchange=exchange)
 
         assert rpc.exchange == exchange
     #---
 
-    def test_SetsExchangeToDefaultIfNonePassedIn(self):
+    def test_DefaultExchangeIsBlankString(self):
         """
-        Tests that __init__ sets the exchange to the default (in the config file) if an exchange was not passed in.
+        Tests that __init__ sets the default exchange to '' if an exchange was not passed in.
 
         """
-        exchange = 'DefaultExchange'
-        rabbitrpcclient.config.DEFAULT_EXCHANGE = mock.MagicMock(return_value=exchange)
-        rpc = rabbitrpcclient.RabbitRPCClient(self.queue, exchange=exchange)
+        exchange = ''
+        rpc = rpcclient.RPCClient()
 
         assert rpc.exchange == exchange
-    #---
+        #---
 
     def test_CallsConnectionSetup(self):
         """
@@ -136,7 +188,7 @@ class Test_Init(object):
 
 class Test_Send(object):
     """
-    Tests RabbitRPCClient's send method.
+    Tests RPCClient's send method.
 
     """
     def setup_method(self, method):
@@ -146,7 +198,7 @@ class Test_Send(object):
         :param method:
 
         """
-        self.localrpc = reload(rabbitrpcclient)
+        self.localrpc = reload(rpcclient)
         self.queue = 'testRPC'
         self.rpc_data = {'bob':'barker'}
         self.pickled_rpc_data = "(dp1" \
@@ -160,15 +212,15 @@ class Test_Send(object):
 
         # Holy mocks Batman
         self.localrpc.logging = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._configureConnection = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._connect = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._startReplyConsumer = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._replyWaitLoop = mock.MagicMock()
+        self.localrpc.RPCClient._configureConnection = mock.MagicMock()
+        self.localrpc.RPCClient._connect = mock.MagicMock()
+        self.localrpc.RPCClient._startReplyConsumer = mock.MagicMock()
+        self.localrpc.RPCClient._replyWaitLoop = mock.MagicMock()
         self.localrpc.cPickle.dumps = mock.MagicMock(return_value=self.pickled_rpc_data)
         self.localrpc.uuid.uuid4 = mock.MagicMock(return_value=self.uuid)
         self.localrpc.pika.BasicProperties = mock.MagicMock(return_value=self.basic_props)
 
-        self.rpc = self.localrpc.RabbitRPCClient(self.queue)
+        self.rpc = self.localrpc.RPCClient(self.queue)
         self.rpc.channel = mock.MagicMock()
         self.rpc_reply = self.rpc.send(self.rpc_data)
     #---
@@ -242,9 +294,9 @@ class Test_Send(object):
     #---
 #---
 
-class Test_startReplyConsumer(object):
+class Test__startReplyConsumer(object):
     """
-    Tests RabbitRPCClient's _startReplyConsumer method.
+    Tests RPCClient's _startReplyConsumer method.
 
     """
     def setup_method(self, method):
@@ -254,14 +306,14 @@ class Test_startReplyConsumer(object):
         :param method:
 
         """
-        self.localrpc = reload(rabbitrpcclient)
+        self.localrpc = reload(rpcclient)
         self.queue = 'testRPC'
 
         self.localrpc.logging = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._configureConnection = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._connect = mock.MagicMock()
+        self.localrpc.RPCClient._configureConnection = mock.MagicMock()
+        self.localrpc.RPCClient._connect = mock.MagicMock()
 
-        self.rpc = self.localrpc.RabbitRPCClient(self.queue)
+        self.rpc = self.localrpc.RPCClient(self.queue)
         self.rpc.channel = mock.MagicMock()
         self.rpc._startReplyConsumer()
         #---
@@ -276,9 +328,9 @@ class Test_startReplyConsumer(object):
     #---
 #---
 
-class Test_replyWaitLoop(object):
+class Test__replyWaitLoop(object):
     """
-    Tests RabbitRPCClient's _replyWaitLoop method.
+    Tests RPCClient's _replyWaitLoop method.
 
     """
     def setup_method(self, method):
@@ -288,14 +340,14 @@ class Test_replyWaitLoop(object):
         :param method:
 
         """
-        self.localrpc = reload(rabbitrpcclient)
+        self.localrpc = reload(rpcclient)
         self.queue = 'testRPC'
 
         self.localrpc.logging = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._configureConnection = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._connect = mock.MagicMock()
+        self.localrpc.RPCClient._configureConnection = mock.MagicMock()
+        self.localrpc.RPCClient._connect = mock.MagicMock()
 
-        self.rpc = self.localrpc.RabbitRPCClient(self.queue)
+        self.rpc = self.localrpc.RPCClient(self.queue)
         self.rpc.connection = mock.MagicMock()
         self.rpc._rpc_reply = 'Yes' # Kills the loop, or the test will never finish
         self.rpc._replyWaitLoop()
@@ -328,9 +380,9 @@ class Test_replyWaitLoop(object):
     #---
 #---
 
-class Test_consumerCallback(object):
+class Test__consumerCallback(object):
     """
-    Tests RabbitRPCClient's _consumerCallback method.
+    Tests RPCClient's _consumerCallback method.
 
     """
     def setup_method(self, method):
@@ -340,15 +392,15 @@ class Test_consumerCallback(object):
         :param method:
 
         """
-        self.localrpc = reload(rabbitrpcclient)
+        self.localrpc = reload(rpcclient)
         self.queue = 'testRPC'
         self.body = 'iamsopickled'
         self.correlation_id = 'something'
         self.rpc_data = ('i','am','so','pickled')
 
         self.localrpc.logging = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._configureConnection = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._connect = mock.MagicMock()
+        self.localrpc.RPCClient._configureConnection = mock.MagicMock()
+        self.localrpc.RPCClient._connect = mock.MagicMock()
         self.localrpc.cPickle.loads = mock.MagicMock(return_value=self.rpc_data)
         self.props = mock.MagicMock()
 
@@ -356,7 +408,7 @@ class Test_consumerCallback(object):
         self.reply_to = 'bob.bob'
         type(self.props).correlation_id = mock.PropertyMock(return_value = self.correlation_id)
 
-        self.rpc = self.localrpc.RabbitRPCClient(self.queue)
+        self.rpc = self.localrpc.RPCClient(self.queue)
         self.rpc.correlation_id = self.correlation_id
         self.rpc._consumerCallback('', '', self.props, self.body)
     #---
@@ -395,7 +447,7 @@ class Test_consumerCallback(object):
         """
         Wraps a test method that uses cPickle mocking so it doesn't screw up other tests.
         """
-        cpickle = reload(rabbitrpcclient.cPickle)
+        cpickle = reload(rpcclient.cPickle)
         self.localrpc.cPickle = cpickle
         self.localrpc.cPickle.loads = mock.MagicMock(return_value=self.rpc_data)
 
@@ -404,11 +456,11 @@ class Test_consumerCallback(object):
         except Exception:
             raise
         finally:
-            self.localrpc.cPickle = reload(rabbitrpcclient.cPickle)
+            self.localrpc.cPickle = reload(rpcclient.cPickle)
     #---
 #---
 
-class Test_Connect(object):
+class Test__connect(object):
     """
     Tests the _connect method.
 
@@ -423,9 +475,9 @@ class Test_Connect(object):
         self.connection_params = {'none':None}
         self.queue = 'daQueue'
 
-        self.localrpc = reload(rabbitrpcclient)
+        self.localrpc = reload(rpcclient)
         self.callback = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._configureConnection = mock.MagicMock()
+        self.localrpc.RPCClient._configureConnection = mock.MagicMock()
 
         self.channel = mock.MagicMock()
         self.connection = mock.MagicMock()
@@ -434,10 +486,10 @@ class Test_Connect(object):
         self.BlockingConnection = self.localrpc.pika.BlockingConnection
 
         self.localrpc.logging = mock.MagicMock()
-        self.localrpc.RabbitRPCClient.connection_params = self.connection_params
+        self.localrpc.RPCClient.connection_params = self.connection_params
 
         # _connect is called by the constructor
-        self.rpc = self.localrpc.RabbitRPCClient(self.queue)
+        self.rpc = self.localrpc.RPCClient(self.queue)
     #---
 
     def test_UsesBlockingConnection(self):
@@ -453,9 +505,9 @@ class Test_Connect(object):
         Tests that _connect raises ConnectionError if there is a problem connecting to RabbitMQ.
 
         """
-        self.BlockingConnection.side_effect = rabbitrpcclient.AMQPConnectionError
+        self.BlockingConnection.side_effect = rpcclient.AMQPConnectionError
 
-        with pytest.raises(rabbitrpcclient.ConnectionError):
+        with pytest.raises(rpcclient.ConnectionError):
             self.rpc._connect()
     #---
 
@@ -488,37 +540,7 @@ class Test_Connect(object):
     #---
 #---
 
-class Test_connect(object):
-    """
-    Tests RabbitRPCClient's _connect method.
-
-    """
-    def setup_method(self, method):
-        """
-        Test Setup
-
-        :param method:
-
-        """
-        self.localrpc = reload(rabbitrpcclient)
-        self.queue = 'testRPC'
-
-        self.localrpc.logging = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._configureConnection = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._connect = mock.MagicMock()
-
-        self.rpc = self.localrpc.RabbitRPCClient(self.queue)
-    #---
-
-    def test_(self):
-        """
-
-
-        """
-    #---
-#---
-
-class Test_ConfigureConnection(object):
+class Test__configureConnection(object):
     """
     Tests the _configureConnection method.
     """
@@ -532,9 +554,9 @@ class Test_ConfigureConnection(object):
         self.host = 'hostname'
         self.port = 1234
         self.vhost = 'b/b'
-        self.creds = {'bob':'barker'}
         self.username = 'bob'
         self.password = 'barker'
+        self.creds = {self.username:self.password}
 
         self.connection_settings = {
             'host': self.host,
@@ -543,39 +565,15 @@ class Test_ConfigureConnection(object):
             'credentials': self.creds
         }
 
-        self.localrpc = reload(rabbitrpcclient)
-        self.localrpc.pika.PlainCredentials = mock.MagicMock(return_value=self.creds)
-        self.PlainCredentials = self.localrpc.pika.PlainCredentials
+        self.localrpc = reload(rpcclient)
         self.localrpc.pika.ConnectionParameters = mock.MagicMock(return_value=self.connection_settings)
-        self.ConnectionParameters = self.localrpc.pika.ConnectionParameters
 
-        self.localrpc.config.HOST = self.host
-        self.localrpc.config.PORT = self.port
-        self.localrpc.config.VHOST = self.vhost
-        self.localrpc.config.USERNAME = self.username
-        self.localrpc.config.PASSWORD = self.password
 
         self.localrpc.logging = mock.MagicMock()
-        self.localrpc.RabbitRPCClient._connect = mock.MagicMock()
+        self.localrpc.RPCClient._connect = mock.MagicMock()
 
         # _configureConnection is called in the constructor
-        self.rpc = self.localrpc.RabbitRPCClient('')
-    #---
-
-    def test_CreatesPlainCredentialsObject(self):
-        """
-        Tests that _connect sets a prefetch_count of 1 for basic_qos.
-
-        """
-        self.PlainCredentials.assert_called_once_with(self.username, self.password)
-    #---
-
-    def test_UsesProperValuesFromConfigFile(self):
-        """
-        Tests that _connect sets a prefetch_count of 1 for basic_qos.
-
-        """
-        self.ConnectionParameters.assert_called_once_with(**self.connection_settings)
+        self.rpc = self.localrpc.RPCClient('')
     #---
 
     def test_SetsConnectionParameters(self):
@@ -584,5 +582,56 @@ class Test_ConfigureConnection(object):
 
         """
         assert self.rpc.connection_params == self.connection_settings
+    #---
+#---
+
+class Test__createCredentials(object):
+    """
+    Tests the _createCredentials method.
+
+    """
+    def setup_method(self, method):
+        """
+        Setup Tests
+
+        :param method:
+
+        """
+        self.username = 'bob'
+        self.password = 'barker'
+        self.creds = {self.username:self.password}
+
+        self.connection_settings = {
+            'username': self.username,
+            'password': self.password,
+            }
+        localrpc = reload(rpcclient)
+
+        localrpc.pika.PlainCredentials = mock.MagicMock(return_value=self.creds)
+        self.PlainCredentials = localrpc.pika.PlainCredentials
+
+        localrpc.RPCClient._configureConnection = mock.MagicMock()
+        localrpc.RPCClient._connect = mock.MagicMock()
+
+        self.callback = mock.MagicMock()
+        # Calls _createCredentials if username and password are set
+        self.rpc = localrpc.RPCClient(connection_settings=self.connection_settings)
+    #---
+
+    def test_CreatesPlainCredentialsObject(self):
+        """
+        Tests that _createCredentials creates a new pika.PlainCredentials object based on the provided username
+        and password.
+
+        """
+        self.PlainCredentials.assert_called_once_with(self.username, self.password)
+    #---
+
+    def test_StoresCredentialsInConnectionSettings(self):
+        """
+        Tests that _createCredentials sets the credentials in the connection config to the PlainCredentials object.
+
+        """
+        assert self.rpc.connection_settings['credentials'] == self.creds
     #---
 #---

@@ -2,7 +2,7 @@
 #
 # $Id: $
 #
-# NAME:         rabbitrpcclient.py
+# NAME:         rpcclient.py
 #
 # AUTHOR:       Nick Whalen <nickw@mindstorm-networks.net>
 # COPYRIGHT:    2013 by Nick Whalen
@@ -29,15 +29,13 @@ import pika
 from pika.exceptions import AMQPConnectionError
 import uuid
 
-from conf import rabbitmq as config
+
+class RPCClientError(Exception): pass
+class ConnectionError(RPCClientError): pass
+class ReplyTimeoutError(RPCClientError): pass
 
 
-class RabbitRPCClientError(Exception): pass
-class ConnectionError(RabbitRPCClientError): pass
-class ReplyTimeoutError(RabbitRPCClientError): pass
-
-
-class RabbitRPCClient(object):
+class RPCClient(object):
     """
     Implements the client side of RPC over RabbitMQ.
 
@@ -47,10 +45,16 @@ class RabbitRPCClient(object):
     reply_queue = None
     correlation_id = None
     log = None
+    connection_settings = {
+        'host': 'localhost',
+        'port': 5672,
+        'virtual_host': '/',
+    }
     _rpc_reply = None
     _reply_timeout = None
 
-    def __init__(self, queue_name, reply_queue = None, exchange = None, reply_timeout = 5000):
+    def __init__(self, queue_name = 'rabbitrpc', reply_queue = None, exchange='', reply_timeout=5000,
+                 connection_settings = None):
         """
         Constructor
 
@@ -62,13 +66,31 @@ class RabbitRPCClient(object):
         :type exchange: str
         :param reply_timeout: Time, in millis, to wait for a reply to the RPC query.
         :type reply_timeout: int
+        :param connection_settings: RabbitMQ connection configuration parameters.  These are the same parameters that
+            are passed to the ConnectionParameters class in pika, minus 'credentials', which is created for you,
+            provided that you provide both 'username' and 'password' values in the dict.
+            See: http://pika.readthedocs.org/en/0.9.8/connecting.html#connectionparameters
+        :type connection_settings: dict
+
 
         """
         self.log = logging.getLogger('rabbitrpclient')
         self.queue = queue_name
         self._reply_timeout = reply_timeout / 1000
-        self.exchange = exchange if exchange else config.DEFAULT_EXCHANGE
+        self.exchange = exchange
         self.reply_queue = reply_queue
+
+        if connection_settings:
+            self.connection_settings = connection_settings
+
+        if 'username' and 'password' in self.connection_settings:
+            self._createCredentials()
+
+        # Remove the original auth values
+        if 'username' in self.connection_settings:
+            del self.connection_settings['username']
+        if 'password' in self.connection_settings:
+            del self.connection_settings['password']
 
         self._configureConnection()
         self._connect()
@@ -174,16 +196,18 @@ class RabbitRPCClient(object):
 
     def _configureConnection(self):
         """
-        Sets up the RabbitMQ connection information.
+        Sets up the connection information.
 
         """
-        connection_settings = {
-            'host': config.HOST,
-            'port': config.PORT,
-            'virtual_host': config.VHOST,
-            'credentials': pika.PlainCredentials(config.USERNAME, config.PASSWORD)
-        }
+        self.connection_params = pika.ConnectionParameters(**self.connection_settings)
+    #---
 
-        self.connection_params = pika.ConnectionParameters(**connection_settings)
+    def _createCredentials(self):
+        """
+        Creates a PlainCredentials class for use by ConnectionParameters.
+
+        """
+        creds = pika.PlainCredentials(self.connection_settings['username'], self.connection_settings['password'])
+        self.connection_settings.update({'credentials': creds})
     #---
 #---
