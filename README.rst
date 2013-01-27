@@ -29,7 +29,7 @@ hives for varying implementations of your API.
 
 Example
 =======
-**RPC Server Example**::
+**RPC Server**::
 
     from rabbitrpc import rabbitrpcserver
 
@@ -45,7 +45,7 @@ Example
     finally:
         self.rpc_server.stop()
 
-**RPC Client Example**::
+**RPC Client**::
 
     from rabbitrpc import rabbitrpcclient
 
