@@ -31,14 +31,14 @@ Example
 =======
 **RPC Server**::
 
-    from rabbitrpc import rabbitrpcserver
+    from rabbitrpc import rpcserver
 
     def rpc_callback(method_info):
         # Based on the data in method_info, select which method to call
         # Call it
         # Return the results
 
-    self.rpc_server = rabbitrpcserver.RabbitRPCServer(rpc_callback, 'RPCRequestQueue')
+    self.rpc_server = rpcserver.RPCServer(rpc_callback, 'RPCRequestQueue')
 
     try:
         self.rpc_server.run()
@@ -47,9 +47,9 @@ Example
 
 **RPC Client**::
 
-    from rabbitrpc import rabbitrpcclient
+    from rabbitrpc import rpcclient
 
-    rpc_client = rabbitrpcclient.RabbitRPCClient('RPCRequestQueue', reply_timeout=3000)
+    rpc_client = rpcclient.RPCClient('RPCRequestQueue', reply_timeout=3000)
 
     request = # API call definition, any pickleable structure
 
