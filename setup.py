@@ -21,7 +21,7 @@ finally:
     f.close()
 
 setup(name='rabbitrpc',
-      version='0.5.0',
+      version='0.5.1',
       platforms=('Any'),
       author='Nick Whalen',
       author_email='nickw@mindstorm-networks.net',
