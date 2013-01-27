@@ -29,7 +29,7 @@ import cPickle
 from rabbitrpc import rabbitrpcserver
 
 
-class Test_Init(object):
+class Test___init__(object):
     """
     Tests __init__
 
@@ -41,7 +41,23 @@ class Test_Init(object):
         :param method:
 
         """
+        self.host = 'hostname'
+        self.port = 1234
+        self.vhost = 'b/b'
+
+        self.connection_settings = {
+            'host': self.host,
+            'port': self.port,
+            'virtual_host': self.vhost,
+        }
+        self.default_settings = {
+            'host': 'localhost',
+            'port': 5672,
+            'virtual_host': '/',
+        }
         self.localrpc = reload(rabbitrpcserver)
+
+
         self.callback = mock.MagicMock()
         self.queue = 'testRPC'
         self.localrpc.RabbitRPCServer._configureConnection = mock.MagicMock()
@@ -75,6 +91,26 @@ class Test_Init(object):
         assert self.rpc.queue == self.queue
     #---
 
+    def test_SetsDefaultConnectionSettings(self):
+        """
+        Tests that __init__ sets the following default config:
+            host: localhost
+            port: 5672
+            virtual_host: /
+
+        """
+        assert self.rpc.connection_settings == self.default_settings
+    #---
+
+    def test_ProvidedConnectionSettingsOverrideDefaultConnectionSettings(self):
+        """
+        Tests that _configureConnection sets a prefetch_count of 1 for basic_qos.
+
+        """
+        rpc = self.localrpc.RabbitRPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
+        assert rpc.connection_settings == self.connection_settings
+    #---
+
     def test_SetsExchangeToProvidedParamIfExists(self):
         """
         Tests that __init__ sets the exchange to what was passed in, if something was passed in.
@@ -86,14 +122,13 @@ class Test_Init(object):
         assert rpc.exchange == exchange
     #---
 
-    def test_SetsExchangeToDefaultIfNonePassedIn(self):
+    def test_DefaultExchangeIsBlankString(self):
         """
-        Tests that __init__ sets the exchange to the default (in the config file) if an exchange was not passed in.
+        Tests that __init__ sets the default exchange to '' if an exchange was not passed in.
 
         """
-        exchange = 'DefaultExchange'
-        rabbitrpcserver.config.DEFAULT_EXCHANGE = mock.MagicMock(return_value=exchange)
-        rpc = rabbitrpcserver.RabbitRPCServer(self.callback, self.queue, exchange)
+        exchange = ''
+        rpc = rabbitrpcserver.RabbitRPCServer(self.callback, self.queue)
 
         assert rpc.exchange == exchange
     #---
@@ -107,7 +142,7 @@ class Test_Init(object):
     #---
 #---
 
-class Test_Stop(object):
+class Test_stop(object):
     """
     Tests the stop method.
 
@@ -146,7 +181,7 @@ class Test_Stop(object):
     #---
 #---
 
-class Test_Run(object):
+class Test_run(object):
     """
     Tests the run method.
 
@@ -186,7 +221,7 @@ class Test_Run(object):
     #---
 #---
 
-class Test_ConsumerCallback(object):
+class Test__consumerCallback(object):
     """
     Tests the _consumerCallback method.
 
@@ -353,7 +388,7 @@ class Test_ConsumerCallback(object):
     #---
 #---
 
-class Test_Connect(object):
+class Test__connect(object):
     """
     Tests the _connect method.
 
@@ -437,7 +472,7 @@ class Test_Connect(object):
 #---
 
 
-class Test_ConfigureConnection(object):
+class Test__configureConnection(object):
     """
     Tests the _configureConnection method.
     """
@@ -451,55 +486,76 @@ class Test_ConfigureConnection(object):
         self.host = 'hostname'
         self.port = 1234
         self.vhost = 'b/b'
-        self.creds = {'bob':'barker'}
-        self.username = 'bob'
-        self.password = 'barker'
 
         self.connection_settings = {
             'host': self.host,
             'port': self.port,
             'virtual_host': self.vhost,
-            'credentials': self.creds
         }
+        self.localrpc = reload(rabbitrpcserver)
 
-        localrpc = reload(rabbitrpcserver)
-        localrpc.pika.PlainCredentials = mock.MagicMock(return_value=self.creds)
-        self.PlainCredentials = localrpc.pika.PlainCredentials
-        localrpc.pika.ConnectionParameters = mock.MagicMock(return_value=self.connection_settings)
-        self.ConnectionParameters = localrpc.pika.ConnectionParameters
-
-        localrpc.config.HOST = self.host
-        localrpc.config.PORT = self.port
-        localrpc.config.VHOST = self.vhost
-        localrpc.config.USERNAME = self.username
-        localrpc.config.PASSWORD = self.password
+        self.localrpc.pika.ConnectionParameters = mock.MagicMock(return_value=self.connection_settings)
 
 
         self.callback = mock.MagicMock()
-        self.rpc = localrpc.RabbitRPCServer(self.callback, '')
+        self.rpc = self.localrpc.RabbitRPCServer(self.callback, '', connection_settings=self.connection_settings)
+    #---
+
+    def test_SetsConnectionParameters(self):
+        """
+        Tests that _configureConnection sets the class' connection parameters.
+
+        """
+        assert self.rpc.connection_settings == self.connection_settings
+    #---
+#---
+
+class Test__createCredentials(object):
+    """
+    Tests the _createCredentials method.
+
+    """
+    def setup_method(self, method):
+        """
+        Setup Tests
+
+        :param method:
+
+        """
+        self.username = 'bob'
+        self.password = 'barker'
+        self.creds = {self.username:self.password}
+
+        self.connection_settings = {
+            'username': self.username,
+            'password': self.password,
+        }
+        localrpc = reload(rabbitrpcserver)
+
+        localrpc.pika.PlainCredentials = mock.MagicMock(return_value=self.creds)
+        self.PlainCredentials = localrpc.pika.PlainCredentials
+
+        localrpc.RabbitRPCServer._configureConnection = mock.MagicMock()
+
+        self.callback = mock.MagicMock()
+        # Calls _createCredentials if username and password are set
+        self.rpc = localrpc.RabbitRPCServer(self.callback, '', connection_settings=self.connection_settings)
     #---
 
     def test_CreatesPlainCredentialsObject(self):
         """
-        Tests that _connect sets a prefetch_count of 1 for basic_qos.
+        Tests that _createCredentials creates a new pika.PlainCredentials object based on the provided username
+        and password.
 
         """
         self.PlainCredentials.assert_called_once_with(self.username, self.password)
     #---
 
-    def test_UsesProperValuesFromConfigFile(self):
+    def test_StoresCredentialsInConnectionSettings(self):
         """
-        Tests that _connect sets a prefetch_count of 1 for basic_qos.
+        Tests that _createCredentials sets the credentials in the connection config to the PlainCredentials object.
 
         """
-        self.ConnectionParameters.assert_called_once_with(**self.connection_settings)
-    #---
-
-    def test_SetsConnectionParameters(self):
-        """
-        Tests that _connect sets the class' connection parameters.
-
-        """
-        assert self.rpc.connection_params == self.connection_settings
+        assert self.rpc.connection_settings['credentials'] == self.creds
     #---
 #---

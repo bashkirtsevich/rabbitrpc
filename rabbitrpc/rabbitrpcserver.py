@@ -28,26 +28,31 @@ import logging
 import pika
 from pika.exceptions import AMQPConnectionError
 
-from conf import rabbitmq as config
-
 
 class RabbitRPCServerError(Exception): pass
 class ConnectionError(RabbitRPCServerError): pass
+class CredentialsError(RabbitRPCServerError): pass
 
 
 class RabbitRPCServer(object):
     """
     Implements the server side of RPC over RabbitMQ.
+
     """
     queue = None
-    exchange = None
+    exchange = ''
     rabbit = None
     connection = None
     channel = None
     rpc_callback = None
     log = None
+    connection_settings = {
+        'host': 'localhost',
+        'port': 5672,
+        'virtual_host': '/',
+    }
 
-    def __init__(self, rpc_callback, queue_name, exchange = None):
+    def __init__(self, rpc_callback, queue_name = 'rabbitrpc', exchange='', connection_settings = None):
         """
         Constructor
 
@@ -55,16 +60,29 @@ class RabbitRPCServer(object):
         :type rpc_callback: function
         :param queue_name: Queue to connect to on the RabbitMQ server
         :type queue_name: str
-        :param exchange: The Exchange to send messages to
-        :type exchange: str
+        :param connection_settings: RabbitMQ connection configuration parameters.  These are the same parameters that
+            are passed to the ConnectionParameters class in pika, minus 'credentials', which is created for you,
+            provided that you provide both 'username' and 'password' values in the dict.
+            See: http://pika.readthedocs.org/en/0.9.8/connecting.html#connectionparameters
+        :type connection_settings: dict
+
         """
         self.log = logging.getLogger('lib.rabbitrpcserver')
         self.rpc_callback = rpc_callback
         self.queue = queue_name
-        if exchange:
-            self.exchange = exchange
-        else:
-            self.exchange = config.DEFAULT_EXCHANGE
+        self.exchange = exchange
+
+        if connection_settings:
+            self.connection_settings = connection_settings
+
+        if 'username' and 'password' in self.connection_settings:
+            self._createCredentials()
+
+        # Remove the original auth values
+        if 'username' in self.connection_settings:
+            del self.connection_settings['username']
+        if 'password' in self.connection_settings:
+            del self.connection_settings['password']
 
         self._configureConnection()
     #---
@@ -145,13 +163,15 @@ class RabbitRPCServer(object):
         Sets up the connection information.
 
         """
-        connection_settings = {
-            'host': config.HOST,
-            'port': config.PORT,
-            'virtual_host': config.VHOST,
-            'credentials': pika.PlainCredentials(config.USERNAME, config.PASSWORD)
-        }
+        self.connection_params = pika.ConnectionParameters(**self.connection_settings)
+    #---
 
-        self.connection_params = pika.ConnectionParameters(**connection_settings)
+    def _createCredentials(self):
+        """
+        Creates a PlainCredentials class for use by ConnectionParameters.
+
+        """
+        creds = pika.PlainCredentials(self.connection_settings['username'], self.connection_settings['password'])
+        self.connection_settings.update({'credentials': creds})
     #---
 #---
