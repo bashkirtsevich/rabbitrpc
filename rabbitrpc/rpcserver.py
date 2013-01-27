@@ -2,7 +2,7 @@
 #
 # $Id: $
 #
-# NAME:         rabbithelper.py
+# NAME:         rpcserver.py
 #
 # AUTHOR:       Nick Whalen <nickw@mindstorm-networks.net>
 # COPYRIGHT:    2013 by Nick Whalen
@@ -29,12 +29,12 @@ import pika
 from pika.exceptions import AMQPConnectionError
 
 
-class RabbitRPCServerError(Exception): pass
-class ConnectionError(RabbitRPCServerError): pass
-class CredentialsError(RabbitRPCServerError): pass
+class RPCServerError(Exception): pass
+class ConnectionError(RPCServerError): pass
+class CredentialsError(RPCServerError): pass
 
 
-class RabbitRPCServer(object):
+class RPCServer(object):
     """
     Implements the server side of RPC over RabbitMQ.
 
@@ -67,7 +67,7 @@ class RabbitRPCServer(object):
         :type connection_settings: dict
 
         """
-        self.log = logging.getLogger('lib.rabbitrpcserver')
+        self.log = logging.getLogger('rabbitrpc.rpcserver')
         self.rpc_callback = rpc_callback
         self.queue = queue_name
         self.exchange = exchange

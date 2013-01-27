@@ -26,7 +26,7 @@
 import mock
 import pytest
 import cPickle
-from rabbitrpc import rabbitrpcserver
+from rabbitrpc import rpcserver
 
 
 class Test___init__(object):
@@ -55,15 +55,15 @@ class Test___init__(object):
             'port': 5672,
             'virtual_host': '/',
         }
-        self.localrpc = reload(rabbitrpcserver)
+        self.localrpc = reload(rpcserver)
 
 
         self.callback = mock.MagicMock()
         self.queue = 'testRPC'
-        self.localrpc.RabbitRPCServer._configureConnection = mock.MagicMock()
+        self.localrpc.RPCServer._configureConnection = mock.MagicMock()
         self.localrpc.logging = mock.MagicMock()
 
-        self.rpc = self.localrpc.RabbitRPCServer(self.callback, self.queue)
+        self.rpc = self.localrpc.RPCServer(self.callback, self.queue)
     #---
 
     def test_SetsUpLogger(self):
@@ -107,7 +107,7 @@ class Test___init__(object):
         Tests that __init__ overrides the default connection settings if they are provided by the user.
 
         """
-        rpc = self.localrpc.RabbitRPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
+        rpc = self.localrpc.RPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
         assert rpc.connection_settings == self.connection_settings
     #---
 
@@ -116,7 +116,7 @@ class Test___init__(object):
         Tests that __init__ removes the username from the connection settings.
 
         """
-        rpc = self.localrpc.RabbitRPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
+        rpc = self.localrpc.RPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
         assert 'username' not in rpc.connection_settings
     #---
 
@@ -125,7 +125,7 @@ class Test___init__(object):
         Tests that __init__ removes the password from the connection settings.
 
         """
-        rpc = self.localrpc.RabbitRPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
+        rpc = self.localrpc.RPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
         assert 'password' not in rpc.connection_settings
     #---
 
@@ -135,7 +135,7 @@ class Test___init__(object):
 
         """
         exchange = 'BobXchange'
-        rpc = rabbitrpcserver.RabbitRPCServer(self.callback, self.queue, exchange)
+        rpc = rpcserver.RPCServer(self.callback, self.queue, exchange)
 
         assert rpc.exchange == exchange
     #---
@@ -146,7 +146,7 @@ class Test___init__(object):
 
         """
         exchange = ''
-        rpc = rabbitrpcserver.RabbitRPCServer(self.callback, self.queue)
+        rpc = rpcserver.RPCServer(self.callback, self.queue)
 
         assert rpc.exchange == exchange
     #---
@@ -172,11 +172,11 @@ class Test_stop(object):
         :param method:
 
         """
-        localrpc = reload(rabbitrpcserver)
+        localrpc = reload(rpcserver)
         self.callback = mock.MagicMock()
-        localrpc.RabbitRPCServer._configureConnection = mock.MagicMock()
+        localrpc.RPCServer._configureConnection = mock.MagicMock()
 
-        self.rpc = localrpc.RabbitRPCServer(self.callback, '')
+        self.rpc = localrpc.RPCServer(self.callback, '')
         self.rpc.channel = mock.MagicMock()
 
         self.rpc.stop()
@@ -211,11 +211,11 @@ class Test_run(object):
         :param method:
 
         """
-        localrpc = reload(rabbitrpcserver)
+        localrpc = reload(rpcserver)
         self.callback = mock.MagicMock()
-        localrpc.RabbitRPCServer._configureConnection = mock.MagicMock()
+        localrpc.RPCServer._configureConnection = mock.MagicMock()
 
-        self.rpc = localrpc.RabbitRPCServer(self.callback, '')
+        self.rpc = localrpc.RPCServer(self.callback, '')
         self.rpc._connect = mock.MagicMock()
         self.rpc.channel = mock.MagicMock()
 
@@ -259,14 +259,14 @@ class Test__consumerCallback(object):
         self.basic_props = 'Props'
 
         # Global mocking
-        self.localrpc = reload(rabbitrpcserver)
+        self.localrpc = reload(rpcserver)
         self.callback = mock.MagicMock(return_value=self.rpc_response)
-        self.localrpc.RabbitRPCServer._configureConnection = mock.MagicMock()
+        self.localrpc.RPCServer._configureConnection = mock.MagicMock()
         self.localrpc.pika.BasicProperties = mock.MagicMock(return_value=self.basic_props)
         self.BasicProperties = self.localrpc.pika.BasicProperties
 
         # Initialize class and mock methods/properties
-        self.rpc = self.localrpc.RabbitRPCServer(self.callback, '')
+        self.rpc = self.localrpc.RPCServer(self.callback, '')
         self.rpc.channel = mock.MagicMock()
         self.rpc.exchange = self.exchange
         self.method = mock.MagicMock()
@@ -290,7 +290,7 @@ class Test__consumerCallback(object):
         """
         Wraps a test method that uses cPickle mocking so it doesn't screw up other tests.
         """
-        cpickle = reload(rabbitrpcserver.cPickle)
+        cpickle = reload(rpcserver.cPickle)
         self.localrpc.cPickle = cpickle
 
         try:
@@ -298,7 +298,7 @@ class Test__consumerCallback(object):
         except Exception:
             raise
         finally:
-            self.localrpc.cPickle = reload(rabbitrpcserver.cPickle)
+            self.localrpc.cPickle = reload(rpcserver.cPickle)
     #---
 
 
@@ -421,9 +421,9 @@ class Test__connect(object):
         self.connection_params = {'none':None}
         self.queue = 'daQueue'
 
-        localrpc = reload(rabbitrpcserver)
+        localrpc = reload(rpcserver)
         self.callback = mock.MagicMock()
-        localrpc.RabbitRPCServer._configureConnection = mock.MagicMock()
+        localrpc.RPCServer._configureConnection = mock.MagicMock()
 
         self.channel = mock.MagicMock()
         self.connection = mock.MagicMock()
@@ -431,7 +431,7 @@ class Test__connect(object):
         localrpc.pika.BlockingConnection = mock.MagicMock(return_value=self.connection)
         self.BlockingConnection = localrpc.pika.BlockingConnection
 
-        self.rpc = localrpc.RabbitRPCServer(self.callback, self.queue)
+        self.rpc = localrpc.RPCServer(self.callback, self.queue)
         self.rpc.connection_params = self.connection_params
 
         self.rpc._connect()
@@ -450,9 +450,9 @@ class Test__connect(object):
         Tests that _connect raises ConnectionError if there is a problem connecting to RabbitMQ.
 
         """
-        self.BlockingConnection.side_effect = rabbitrpcserver.AMQPConnectionError
+        self.BlockingConnection.side_effect = rpcserver.AMQPConnectionError
 
-        with pytest.raises(rabbitrpcserver.ConnectionError):
+        with pytest.raises(rpcserver.ConnectionError):
             self.rpc._connect()
     #---
 
@@ -510,13 +510,13 @@ class Test__configureConnection(object):
             'port': self.port,
             'virtual_host': self.vhost,
         }
-        self.localrpc = reload(rabbitrpcserver)
+        self.localrpc = reload(rpcserver)
 
         self.localrpc.pika.ConnectionParameters = mock.MagicMock(return_value=self.connection_settings)
 
 
         self.callback = mock.MagicMock()
-        self.rpc = self.localrpc.RabbitRPCServer(self.callback, '', connection_settings=self.connection_settings)
+        self.rpc = self.localrpc.RPCServer(self.callback, '', connection_settings=self.connection_settings)
     #---
 
     def test_SetsConnectionParameters(self):
@@ -548,16 +548,16 @@ class Test__createCredentials(object):
             'username': self.username,
             'password': self.password,
         }
-        localrpc = reload(rabbitrpcserver)
+        localrpc = reload(rpcserver)
 
         localrpc.pika.PlainCredentials = mock.MagicMock(return_value=self.creds)
         self.PlainCredentials = localrpc.pika.PlainCredentials
 
-        localrpc.RabbitRPCServer._configureConnection = mock.MagicMock()
+        localrpc.RPCServer._configureConnection = mock.MagicMock()
 
         self.callback = mock.MagicMock()
         # Calls _createCredentials if username and password are set
-        self.rpc = localrpc.RabbitRPCServer(self.callback, '', connection_settings=self.connection_settings)
+        self.rpc = localrpc.RPCServer(self.callback, '', connection_settings=self.connection_settings)
     #---
 
     def test_CreatesPlainCredentialsObject(self):
