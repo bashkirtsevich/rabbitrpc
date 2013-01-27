@@ -104,11 +104,29 @@ class Test___init__(object):
 
     def test_ProvidedConnectionSettingsOverrideDefaultConnectionSettings(self):
         """
-        Tests that _configureConnection sets a prefetch_count of 1 for basic_qos.
+        Tests that __init__ overrides the default connection settings if they are provided by the user.
 
         """
         rpc = self.localrpc.RabbitRPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
         assert rpc.connection_settings == self.connection_settings
+    #---
+
+    def test_RemovesUsernameFromConnectionSettings(self):
+        """
+        Tests that __init__ removes the username from the connection settings.
+
+        """
+        rpc = self.localrpc.RabbitRPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
+        assert 'username' not in rpc.connection_settings
+    #---
+
+    def test_RemovesPasswordFromConnectionSettings(self):
+        """
+        Tests that __init__ removes the password from the connection settings.
+
+        """
+        rpc = self.localrpc.RabbitRPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
+        assert 'password' not in rpc.connection_settings
     #---
 
     def test_SetsExchangeToProvidedParamIfExists(self):
