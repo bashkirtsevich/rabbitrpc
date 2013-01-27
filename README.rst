@@ -14,7 +14,15 @@ do something like this on the client side::
 
     import rpcclient
 
-    foo_class = rpcclient.RPCClient('remote_api_module_name', '/path/to/config/file')
+    connection_settings = {
+        'host': 'localhost',
+        'port': 5672,
+        'virtual_host': '/',
+        'username': 'bob',
+        'password': 'secret',
+    }
+
+    foo_class = rpcclient.RPCClient('remote_api_module_name', connection_settings=connection_settings)
     return_value = foo_class.remote_api_method()
 
 This will happen via server-side method registration.  The RPC server will keep track of all public methods and, at
@@ -33,12 +41,20 @@ Example
 
     from rabbitrpc import rpcserver
 
+    connection_settings = {
+        'host': 'localhost',
+        'port': 5672,
+        'virtual_host': '/',
+        'username': 'bob',
+        'password': 'secret',
+    }
+
     def rpc_callback(method_info):
         # Based on the data in method_info, select which method to call
         # Call it
         # Return the results
 
-    self.rpc_server = rpcserver.RPCServer(rpc_callback, 'RPCRequestQueue')
+    self.rpc_server = rpcserver.RPCServer(rpc_callback, 'RPCRequestQueue', connection_settings=connection_settings)
 
     try:
         self.rpc_server.run()
@@ -49,10 +65,17 @@ Example
 
     from rabbitrpc import rpcclient
 
-    rpc_client = rpcclient.RPCClient('RPCRequestQueue', reply_timeout=3000)
+    connection_settings = {
+        'host': 'localhost',
+        'port': 5672,
+        'virtual_host': '/',
+        'username': 'bob',
+        'password': 'secret',
+    }
+
+    rpc_client = rpcclient.RPCClient('RPCRequestQueue', reply_timeout=3000, connection_settings=connection_settings)
 
     request = # API call definition, any pickleable structure
-
     reply = rpc_client.send(request)
 
     print 'API REPLY: %s' % reply
