@@ -39,18 +39,44 @@ class RPCServer(object):
     Implements the server side of RPC over RabbitMQ.
 
     """
-    queue = None
-    exchange = ''
-    rabbit = None
-    connection = None
     channel = None
-    rpc_callback = None
-    log = None
+    connection = None
     connection_settings = {
         'host': 'localhost',
         'port': 5672,
         'virtual_host': '/',
     }
+    exchange = ''
+    log = None
+    queue = None
+    rabbit = None
+    rpc_callback = None
+    rpc_methods = {}
+    rpc_classes = {}
+
+    @classmethod
+    def registerMethod(cls, rpc_method):
+        """
+        Registers an RPC method with the server class.
+
+        :param rpc_method: The method to register as an available RPC call
+        :type rpc_method: object
+
+        :return:
+        """
+    #---
+
+    @classmethod
+    def registerClass(cls, rpc_class):
+        """
+        Registers an RPC class with the server class.
+
+        :param rpc_class: The class to register as a RPC class
+        :type rpc_class: object
+
+        :return:
+        """
+    #---
 
     def __init__(self, rpc_callback, queue_name = 'rabbitrpc', exchange='', connection_settings = None):
         """
