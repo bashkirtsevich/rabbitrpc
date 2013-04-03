@@ -25,8 +25,7 @@
 
 import mock
 import pytest
-import cPickle
-from rabbitrpc import rpcserver
+from rabbitrpc.rabbitmq import consumer
 
 
 class Test___init__(object):
@@ -55,15 +54,15 @@ class Test___init__(object):
             'port': 5672,
             'virtual_host': '/',
         }
-        self.localrpc = reload(rpcserver)
+        self.localrpc = reload(consumer)
 
 
         self.callback = mock.MagicMock()
         self.queue = 'testRPC'
-        self.localrpc.RPCServer._configureConnection = mock.MagicMock()
+        self.localrpc.Consumer._configureConnection = mock.MagicMock()
         self.localrpc.logging = mock.MagicMock()
 
-        self.rpc = self.localrpc.RPCServer(self.callback, self.queue)
+        self.rpc = self.localrpc.Consumer(self.callback, self.queue)
     #---
 
     def test_SetsUpLogger(self):
@@ -77,10 +76,10 @@ class Test___init__(object):
 
     def test_SetsRPCCallbackMethod(self):
         """
-        Tests that __init__ sets the rpc_callback.
+        Tests that __init__ sets the callback.
 
         """
-        assert self.rpc.rpc_callback == self.callback
+        assert self.rpc.callback == self.callback
     #---
 
     def test_SetsQueueName(self):
@@ -107,7 +106,7 @@ class Test___init__(object):
         Tests that __init__ overrides the default connection settings if they are provided by the user.
 
         """
-        rpc = self.localrpc.RPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
+        rpc = self.localrpc.Consumer(self.callback, self.queue, connection_settings=self.connection_settings)
         assert rpc.connection_settings == self.connection_settings
     #---
 
@@ -116,7 +115,7 @@ class Test___init__(object):
         Tests that __init__ removes the username from the connection settings.
 
         """
-        rpc = self.localrpc.RPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
+        rpc = self.localrpc.Consumer(self.callback, self.queue, connection_settings=self.connection_settings)
         assert 'username' not in rpc.connection_settings
     #---
 
@@ -125,7 +124,7 @@ class Test___init__(object):
         Tests that __init__ removes the password from the connection settings.
 
         """
-        rpc = self.localrpc.RPCServer(self.callback, self.queue, connection_settings=self.connection_settings)
+        rpc = self.localrpc.Consumer(self.callback, self.queue, connection_settings=self.connection_settings)
         assert 'password' not in rpc.connection_settings
     #---
 
@@ -135,7 +134,7 @@ class Test___init__(object):
 
         """
         exchange = 'BobXchange'
-        rpc = rpcserver.RPCServer(self.callback, self.queue, exchange)
+        rpc = consumer.Consumer(self.callback, self.queue, exchange)
 
         assert rpc.exchange == exchange
     #---
@@ -146,7 +145,7 @@ class Test___init__(object):
 
         """
         exchange = ''
-        rpc = rpcserver.RPCServer(self.callback, self.queue)
+        rpc = consumer.Consumer(self.callback, self.queue)
 
         assert rpc.exchange == exchange
     #---
@@ -172,11 +171,11 @@ class Test_stop(object):
         :param method:
 
         """
-        localrpc = reload(rpcserver)
+        localrpc = reload(consumer)
         self.callback = mock.MagicMock()
-        localrpc.RPCServer._configureConnection = mock.MagicMock()
+        localrpc.Consumer._configureConnection = mock.MagicMock()
 
-        self.rpc = localrpc.RPCServer(self.callback, '')
+        self.rpc = localrpc.Consumer(self.callback, '')
         self.rpc.channel = mock.MagicMock()
 
         self.rpc.stop()
@@ -211,11 +210,11 @@ class Test_run(object):
         :param method:
 
         """
-        localrpc = reload(rpcserver)
+        localrpc = reload(consumer)
         self.callback = mock.MagicMock()
-        localrpc.RPCServer._configureConnection = mock.MagicMock()
+        localrpc.Consumer._configureConnection = mock.MagicMock()
 
-        self.rpc = localrpc.RPCServer(self.callback, '')
+        self.rpc = localrpc.Consumer(self.callback, '')
         self.rpc._connect = mock.MagicMock()
         self.rpc.channel = mock.MagicMock()
 
@@ -252,21 +251,19 @@ class Test__consumerCallback(object):
 
         """
         self.body = {'bob':'barker'}
-        self.body_pickled = cPickle.dumps(self.body)
         self.rpc_response = {'rpc':'result'}
-        self.rpc_response_pickled = cPickle.dumps(self.rpc_response)
         self.exchange = 'Xchange'
         self.basic_props = 'Props'
 
         # Global mocking
-        self.localrpc = reload(rpcserver)
+        self.localrpc = reload(consumer)
         self.callback = mock.MagicMock(return_value=self.rpc_response)
-        self.localrpc.RPCServer._configureConnection = mock.MagicMock()
+        self.localrpc.Consumer._configureConnection = mock.MagicMock()
         self.localrpc.pika.BasicProperties = mock.MagicMock(return_value=self.basic_props)
         self.BasicProperties = self.localrpc.pika.BasicProperties
 
         # Initialize class and mock methods/properties
-        self.rpc = self.localrpc.RPCServer(self.callback, '')
+        self.rpc = self.localrpc.Consumer(self.callback, '')
         self.rpc.channel = mock.MagicMock()
         self.rpc.exchange = self.exchange
         self.method = mock.MagicMock()
@@ -283,74 +280,17 @@ class Test__consumerCallback(object):
         type(self.props).correlation_id = mock.PropertyMock(return_value = self.correlation_id)
 
         # Actual call for method under test
-        self.rpc._consumerCallback('', self.method, self.props, self.body_pickled)
-    #---
-
-    def _reload_cPickle(self, test_method):
-        """
-        Wraps a test method that uses cPickle mocking so it doesn't screw up other tests.
-        """
-        cpickle = reload(rpcserver.cPickle)
-        self.localrpc.cPickle = cpickle
-
-        try:
-            test_method()
-        except Exception:
-            raise
-        finally:
-            self.localrpc.cPickle = reload(rpcserver.cPickle)
+        self.rpc._consumerCallback('', self.method, self.props, self.body)
     #---
 
 
     def test_CallsProvidedCallback(self):
         """
-        Tests that _consumerCallback calls the provided callback with un-pickled data.
+        Tests that _consumerCallback calls the provided callback with the body data.
 
         """
-        self.rpc.rpc_callback.assert_called_once_with(self.body)
+        self.rpc.callback.assert_called_once_with(self.body)
     #---
-
-    # Uses cPickle reload wrapper
-    def _UnPicklesBody(self):
-        """
-        Tests that _consumerCallback will un-pickle the message body.
-
-        """
-        self.localrpc.cPickle.loads = mock.MagicMock(return_value=self.body)
-        self.rpc._consumerCallback('', self.method, self.props, self.body_pickled)
-
-        self.localrpc.cPickle.loads.assert_called_once_with(self.body_pickled)
-    #---
-    def test_UnPicklesBody(self): self._reload_cPickle(self._UnPicklesBody)
-
-    # Uses cPickle reload wrapper
-    def _PicklesRPCCallbackResponse(self):
-        """
-        Tests that _consumerCallback pickles the RPC callback's response
-
-        """
-        self.localrpc.cPickle.dumps = mock.MagicMock(return_value=self.rpc_response_pickled)
-        self.rpc._consumerCallback('', self.method, self.props, self.body_pickled)
-
-        self.localrpc.cPickle.dumps.assert_called_once_with(self.rpc_response)
-    #---
-    def test_PicklesRPCCallbackResponse(self): self._reload_cPickle(self._PicklesRPCCallbackResponse)
-
-    # Uses cPickle reload wrapper
-    def _LogsUnexpectedUnPickleExceptions(self):
-        """
-        Tests that _consumerCallback will log unexpected exceptions arising from the cPickle loads method.
-
-        """
-        self.localrpc.cPickle.loads = mock.MagicMock(side_effect=ValueError(), return_value=self.body)
-        self.rpc.log.error = mock.MagicMock()
-        self.rpc._consumerCallback('', self.method, self.props, self.body_pickled)
-
-        called = self.rpc.log.error.called
-        assert called == True
-
-    #---
-    def test_LogsUnexpectedUnPickleExceptions(self): self._reload_cPickle(self._LogsUnexpectedUnPickleExceptions)
 
     def test_LogsUnexpectedRPCCallbackExceptions(self):
         """
@@ -359,7 +299,7 @@ class Test__consumerCallback(object):
         """
         self.callback.side_effect = ValueError()
         self.rpc.log.error = mock.MagicMock()
-        self.rpc._consumerCallback('', self.method, self.props, self.body_pickled)
+        self.rpc._consumerCallback('', self.method, self.props, self.body)
 
         called = self.rpc.log.error.called
         assert called == True
@@ -373,7 +313,7 @@ class Test__consumerCallback(object):
         self.rpc.channel.reset_mock()
         props = {}
 
-        self.rpc._consumerCallback('', self.method, props, self.body_pickled)
+        self.rpc._consumerCallback('', self.method, props, self.body)
 
         called = self.rpc.channel.basic_publish.called
         assert called == False
@@ -394,7 +334,7 @@ class Test__consumerCallback(object):
 
         """
         self.rpc.channel.basic_publish.assert_called_once_with(exchange=self.exchange, routing_key=self.reply_to,
-                                                           properties=self.basic_props, body=self.rpc_response_pickled)
+                                                           properties=self.basic_props, body=self.rpc_response)
     #---
 
     def test_AcknowledgesMessage(self):
@@ -421,9 +361,9 @@ class Test__connect(object):
         self.connection_params = {'none':None}
         self.queue = 'daQueue'
 
-        localrpc = reload(rpcserver)
+        localrpc = reload(consumer)
         self.callback = mock.MagicMock()
-        localrpc.RPCServer._configureConnection = mock.MagicMock()
+        localrpc.Consumer._configureConnection = mock.MagicMock()
 
         self.channel = mock.MagicMock()
         self.connection = mock.MagicMock()
@@ -431,7 +371,7 @@ class Test__connect(object):
         localrpc.pika.BlockingConnection = mock.MagicMock(return_value=self.connection)
         self.BlockingConnection = localrpc.pika.BlockingConnection
 
-        self.rpc = localrpc.RPCServer(self.callback, self.queue)
+        self.rpc = localrpc.Consumer(self.callback, self.queue)
         self.rpc.connection_params = self.connection_params
 
         self.rpc._connect()
@@ -450,9 +390,9 @@ class Test__connect(object):
         Tests that _connect raises ConnectionError if there is a problem connecting to RabbitMQ.
 
         """
-        self.BlockingConnection.side_effect = rpcserver.AMQPConnectionError
+        self.BlockingConnection.side_effect = consumer.AMQPConnectionError
 
-        with pytest.raises(rpcserver.ConnectionError):
+        with pytest.raises(consumer.ConnectionError):
             self.rpc._connect()
     #---
 
@@ -510,13 +450,13 @@ class Test__configureConnection(object):
             'port': self.port,
             'virtual_host': self.vhost,
         }
-        self.localrpc = reload(rpcserver)
+        self.localrpc = reload(consumer)
 
         self.localrpc.pika.ConnectionParameters = mock.MagicMock(return_value=self.connection_settings)
 
 
         self.callback = mock.MagicMock()
-        self.rpc = self.localrpc.RPCServer(self.callback, '', connection_settings=self.connection_settings)
+        self.rpc = self.localrpc.Consumer(self.callback, '', connection_settings=self.connection_settings)
     #---
 
     def test_SetsConnectionParameters(self):
@@ -548,16 +488,16 @@ class Test__createCredentials(object):
             'username': self.username,
             'password': self.password,
         }
-        localrpc = reload(rpcserver)
+        localrpc = reload(consumer)
 
         localrpc.pika.PlainCredentials = mock.MagicMock(return_value=self.creds)
         self.PlainCredentials = localrpc.pika.PlainCredentials
 
-        localrpc.RPCServer._configureConnection = mock.MagicMock()
+        localrpc.Consumer._configureConnection = mock.MagicMock()
 
         self.callback = mock.MagicMock()
         # Calls _createCredentials if username and password are set
-        self.rpc = localrpc.RPCServer(self.callback, '', connection_settings=self.connection_settings)
+        self.rpc = localrpc.Consumer(self.callback, '', connection_settings=self.connection_settings)
     #---
 
     def test_CreatesPlainCredentialsObject(self):
