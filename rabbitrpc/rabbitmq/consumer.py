@@ -121,7 +121,7 @@ class Consumer(object):
         try:
             callback_response = self.callback(body)
         except Exception as error:
-            self.log.error('ERROR: Unexpected exception raised while processing RPC request: %s' % error)
+            self.log.error('ERROR: Unexpected exception raised while calling the consumer callback: %s' % error)
             # This tells the server we didn't process the message and to hold it for another consumer
             self.channel.basic_reject(delivery_tag=method.delivery_tag)
             return
