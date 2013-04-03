@@ -39,7 +39,7 @@ def RPCFunctionProxy(*args, **kwargs):
 class RPCClassProxy(object):
     """
     Provides a proxy for RPC calls to classes.  Target methods must be class methods (for obvious reasons).  The proxy
-    method will construct a Python datastructure that will be used to inform the RPC server what method we want to
+    method will construct a Python data-structure that will be used to inform the RPC server what method we want to
     execute.
 
     This class should _never_ be invoked directly.  Use the `generate` method to properly create custom RPC classes that
@@ -107,11 +107,13 @@ class RPCClassProxy(object):
         return cls
     #---
 
+    # TODO: Finish me
     def _registerMethods(self):
         """
         This method should be used to refresh the abilities of an instantiated proxy class.
 
         :return:
+
         """
         orig_func = self._method_mask.__func__
 
@@ -123,11 +125,16 @@ class RPCClassProxy(object):
             setattr(self, method, new.instancemethod(self._method_mask, None, self.__class__))
     #---
 
+    # TODO: Finish me
     def _proxy_method_call(self, method_name, method, *args, **kwargs):
         """
+        This method does the actual work of proxying a registered instance method call out to the remote server via the
+        MQ.
 
-        :param args:
-        :param kwargs:
+        :param method_name: The name of the method that was invoked
+        :param method: This appears to be the method definition from the RPC server... WHAT ARE YOU!?
+        :param args: The args to pass to the invoked method
+        :param kwargs: The keyword arguments to pass to the invoked method
         :return:
         """
         print method_name
