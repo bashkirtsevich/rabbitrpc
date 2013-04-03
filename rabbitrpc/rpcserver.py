@@ -24,6 +24,7 @@
 #
 
 import cPickle
+import inspect
 import logging
 import pika
 from pika.exceptions import AMQPConnectionError
@@ -32,6 +33,32 @@ from pika.exceptions import AMQPConnectionError
 class RPCServerError(Exception): pass
 class ConnectionError(RPCServerError): pass
 class CredentialsError(RPCServerError): pass
+
+
+def RPCFunction(function):
+    """
+    Decorator to register a function as an RPC function.
+
+    :param function:  Incoming function to register
+
+    :rtype: func
+
+    """
+    # Reads the function's args and arranges them into a format that's easy to use on the other side
+    argspec = inspect.getargspec(function)
+    num_defaults = len(argspec.defaults)
+    named_args = argspec.args[:num_defaults] + zip(argspec.args[num_defaults:],argspec.defaults)
+
+    args = {'named': named_args, 'kwargs': argspec.keywords, 'varargs': argspec.varargs}
+
+    function_wire_def = {
+        function.__name__: dict(args=args, doc=inspect.cleandoc(function.__doc__))
+    }
+
+    RPCServer.registerFunction(function_wire_def)
+
+    return function
+#---
 
 
 class RPCServer(object):
@@ -51,32 +78,25 @@ class RPCServer(object):
     queue = None
     rabbit = None
     rpc_callback = None
-    rpc_methods = {}
+
+    rpc_functions = {}
+    rpc_functions_hash = None
     rpc_classes = {}
+    rpc_classes_hash = None
+
 
     @classmethod
-    def registerMethod(cls, rpc_method):
+    def registerFunction(cls, rpc_function_def):
         """
-        Registers an RPC method with the server class.
+        Registers an RPC function with the server class.
 
-        :param rpc_method: The method to register as an available RPC call
-        :type rpc_method: object
+        :param rpc_function_def: The method to register as an available RPC call
+        :type rpc_function_def: dict
 
-        :return:
         """
+        cls.rpc_functions.update(rpc_function_def)
     #---
 
-    @classmethod
-    def registerClass(cls, rpc_class):
-        """
-        Registers an RPC class with the server class.
-
-        :param rpc_class: The class to register as a RPC class
-        :type rpc_class: object
-
-        :return:
-        """
-    #---
 
     def __init__(self, rpc_callback, queue_name = 'rabbitrpc', exchange='', connection_settings = None):
         """
