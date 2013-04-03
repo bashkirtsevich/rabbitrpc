@@ -26,6 +26,7 @@
 import cPickle
 import inspect
 import logging
+from rabbitmq import consumer
 
 
 class RPCServerError(Exception): pass
@@ -62,10 +63,18 @@ class RPCServer(object):
     Implements the server side of RPC over RabbitMQ.
 
     """
-    rpc_functions = {}
-    rpc_functions_hash = None
-    rpc_classes = {}
-    rpc_classes_hash = None
+    rabbit_config = {
+        'host': 'localhost',
+        'port': 5672,
+        'virtual_host': '/',
+        'queue_name': 'rabbitrpc',
+        'username': None,
+        'password': None,
+        'exchange': '',
+    }
+    rabbit_consumer = None
+    definitions = {}
+    log = None
 
 
     @classmethod
@@ -77,25 +86,47 @@ class RPCServer(object):
         :type rpc_function_def: dict
 
         """
-        cls.rpc_functions.update(rpc_function_def)
+        cls.definitions.update(rpc_function_def)
     #---
 
 
-    def __init__(self, rpc_callback, queue_name = 'rabbitrpc', exchange='', connection_settings = None):
+    def __init__(self, rabbit_config):
         """
         Constructor
 
-        :param rpc_callback: The method to call when the server receives and incoming RPC request.
-        :type rpc_callback: function
-        :param queue_name: Queue to connect to on the RabbitMQ server
-        :type queue_name: str
-        :param connection_settings: RabbitMQ connection configuration parameters.  These are the same parameters that
-            are passed to the ConnectionParameters class in pika, minus 'credentials', which is created for you,
-            provided that you provide both 'username' and 'password' values in the dict.
-            See: http://pika.readthedocs.org/en/0.9.8/connecting.html#connectionparameters
-        :type connection_settings: dict
+        :param rabbit_config: Dictionary which contains the RabbitMQ config.  Partial config can be passed, and
+          values will overwrite their matching defaults. Defaults shown below:
+            {
+                'host': 'localhost',
+                'port': 5672,
+                'virtual_host': '/',
+                'queue_name': 'rabbitrpc',
+                'username': None,
+                'password': None,
+                'exchange': '',
+            }
+        :type rabbit_config: dict
 
         """
+        self.log = logging.getLogger('rpcserver')
 
+        # TODO: Fix this after the consumer constructor is refactored
+        self.rabbit_consumer = consumer.Consumer(self._rabbit_callback, self.rabbit_config['queue_name'],
+                                                 self.rabbit_config['exchange'], self.rabbit_config)
+    #---
+
+
+    def _rabbit_callback(self, body):
+        """
+        Takes the information from the RabbitMQ message body and determines what should be done with it, then does
+        it.
+
+        :param body: The message body from the RabbitMQ consumer
+        :type body: str
+
+        :return: Whatever the method that was proxied returns, encoded
+        """
+
+        return
     #---
 #---
