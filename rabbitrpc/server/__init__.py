@@ -20,8 +20,7 @@
 #   limitations under the License.
 #
 # DESCRIPTION:
-#   Provides RPC function/class registration functions (via decorators)
+#
 #
 
-from . import rpcserver
 
