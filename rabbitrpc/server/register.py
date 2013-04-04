@@ -2,7 +2,7 @@
 #
 # $Id: $
 #
-# NAME:         .py
+# NAME:         register.py
 #
 # AUTHOR:       Nick Whalen <nickw@mindstorm-networks.net>
 # COPYRIGHT:    2013 by Nick Whalen
