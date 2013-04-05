@@ -27,10 +27,12 @@ import cPickle
 from rabbitrpc import iniparser
 import logging
 from rabbitrpc.rabbitmq import consumer
+import sys
 
 
 class RPCServerError(Exception): pass
 class CallError(RPCServerError): pass
+class ModuleError(RPCServerError): pass
 
 
 class RPCServer(object):
@@ -38,15 +40,18 @@ class RPCServer(object):
     Implements the server side of RPC over RabbitMQ.
 
     """
+    internal_definitions = {
+        'provide_definitions' : {
+            'args': None,
+            },
+        'current_hash' : {
+            'args': None,
+            },
+    }
     rabbit_consumer = None
     definitions = {}
     picked_defs = None
     pickled_defs_hash = None
-    internal_definitions = {
-        'provide_definitions' : {
-                'args': None,
-        }
-    }
     log = None
 
 
@@ -91,28 +96,65 @@ class RPCServer(object):
     #---
 
 
+    def provide_definitions(self):
+        """
+        Provides the function definitions and their hash.
+
+        :rtype: dict
+
+        """
+        data = {
+            'definitions': self.picked_defs,
+            'hash': self.pickled_defs_hash,
+        }
+
+        return data
+    #---
+
+
+    def current_hash(self):
+        """
+        Provides the current hash.
+
+        :rtype: int
+
+        """
+
+        return self.pickled_defs_hash
+    #---
+
+
     def _run_call(self, call_request):
         """
         Runs the specified call with or without args, depending on 'args' data.
 
-        :param method: The method to call
-        :param method_args: The arguments to pass to the method
-        :type method_args: dict
+        :param call_request: The call request data
+        :type call_request: dict
 
-        :return:
+        :return: Whatever the call returns
 
         """
-        if call_request['internal']:
-            dynamic_method =  self.__getattribute__(call_request['call_name'])
-        # FIXME
+        call_module = call_request['module']
+        call_name = call_request['call_name']
+
+        if call_request['internal'] and not call_module:
+            dynamic_method =  self.__getattribute__(call_name)
+
         else:
-            dynamic_method = lambda : None
+            if not call_module in sys.modules:
+                raise ModuleError('%s is not a valid module on this server' %call_module)
+            if not call_request['name'] in sys.modules[call_module].__dict__:
+                raise CallError('%s is not a valid call on this server' %call_name)
+            
+            dynamic_method = sys.modules[call_module].__dict__[call_name]
 
         if not call_request['args']:
             return dynamic_method()
 
+
         args = {'varargs': [], 'kwargs': {}}
-        args.update(call_request['args'])
+        # Remove 'None' values from incoming args and update the defaults
+        args.update({key: value for key,value in call_request['args'].items() if value})
 
         return dynamic_method(*args['varargs'], **args['kwargs'])
     #---
@@ -138,6 +180,29 @@ class RPCServer(object):
                 raise CallError('%s is not defined' % call_request['call_name'])
     #---
 
+    def _encode_result(self, result, call_request):
+        """
+        Encodes a call result into a data structure with information about the call and any errors, then pickles
+        the result and returns it.
+
+        :param result: The result data, can be any valid python object
+        :param call_request: The original call request data
+
+        :return: The encoded call result
+        :rtype: str
+
+        """
+        call_result = {
+            'call': call_request,
+            'result': result,
+            'error': False,
+        }
+
+        if result is Exception:
+            call_result['error'] = True
+
+        return cPickle.dumps(call_result)
+    #---
 
     def _rabbit_callback(self, body):
         """
@@ -152,26 +217,13 @@ class RPCServer(object):
         """
         # De-serialize the data
         call_request = cPickle.loads(body)
-        
-        self._validate_call_request(call_request)
-        result = self._run_call(call_request)
 
-        return cPickle.dumps(result)
-    #---
+        try:
+            self._validate_call_request(call_request)
+            result = self._run_call(call_request)
+        except Exception as result:
+            pass
 
-
-    def provide_definitions(self):
-        """
-        Provides the function definitions and their hash.
-
-        :rtype: dict
-
-        """
-        data = {
-            'definitions': self.picked_defs,
-            'hash': self.pickled_defs_hash,
-        }
-
-        return data
+        return self._encode_result(result, call_request)
     #---
 #---
