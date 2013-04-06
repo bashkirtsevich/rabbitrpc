@@ -23,6 +23,7 @@
 #   Provides RPC function/class registration functions (via decorators)
 #
 
+import collections
 from . import rpcserver
 import inspect
 
@@ -36,22 +37,40 @@ def RPCFunction(function):
     :rtype: func
 
     """
+    DefinedArgs = collections.namedtuple('DefinedArgs', ['var', 'kw'])
+    kwargs = None
+    varargs = None
+    docs = None
+
     # Reads the function's args and arranges them into a format that's easy to use on the other side
     argspec = inspect.getargspec(function)
 
     if argspec.defaults:
         num_defaults = len(argspec.defaults)
-        named_args = argspec.args[:num_defaults] + zip(argspec.args[num_defaults:],argspec.defaults)
+        # Only keyword args
+        if num_defaults == len(argspec.args):
+            kwargs = dict(zip(argspec.args,argspec.defaults))
+        else:
+            varargs = argspec.args[:num_defaults]
+            kwargs = dict(zip(argspec.args[num_defaults:],argspec.defaults))
+    elif argspec.args:
+        varargs = argspec.args
+
+    if not varargs and not kwargs:
+        defined_args = None
     else:
-        named_args = argspec.args
+        defined_args = DefinedArgs(var=varargs, kw=kwargs)
 
-    args = {'named': named_args, 'kwargs': argspec.keywords, 'varargs': argspec.varargs}
+    args = {'defined': defined_args, 'kwargs_var': argspec.keywords, 'varargs_var': argspec.varargs}
 
-    func_wire_protocol = {
-        function.__name__: dict(args=args, doc=inspect.cleandoc(function.__doc__), module=function.__module__)
+    if function.__doc__:
+        docs = inspect.cleandoc(function.__doc__)
+
+    function_definition = {
+        function.__name__: dict(args=args, doc=docs, module=function.__module__)
     }
 
-    rpcserver.RPCServer.register_definition(func_wire_protocol)
+    rpcserver.RPCServer.register_definition(function_definition)
 
     return function
 #---
