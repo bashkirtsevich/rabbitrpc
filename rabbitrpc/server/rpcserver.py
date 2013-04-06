@@ -167,7 +167,7 @@ class RPCServer(object):
 
 
         args = {'varargs': [], 'kwargs': {}}
-        # Remove 'None' values from incoming args and update the defaults
+        # Remove keys with 'None' values from incoming args and update the defaults
         args.update({key: value for key,value in call_request['args'].items() if value})
 
         return dynamic_method(*args['varargs'], **args['kwargs'])
