@@ -292,6 +292,63 @@ class Test__consumerCallback(object):
         self.rpc.callback.assert_called_once_with(self.body)
     #---
 
+    def test_LogsImproperlyFormedMessages(self):
+        """
+        Tests that _consumerCallback logs improperly formed messages.
+
+        """
+        self.callback.side_effect = self.localrpc.InvalidMessageError()
+        self.rpc.log.error = mock.MagicMock()
+        self.rpc._consumerCallback('', self.method, self.props, self.body)
+
+        called = self.rpc.log.error.called
+        assert called == True
+    #---
+
+    def test_DropsImproperlyFormedMessages(self):
+        """
+        Tests that _consumerCallback will drop messages that are not properly formed.
+
+        """
+        self.callback.side_effect = self.localrpc.InvalidMessageError()
+        self.rpc.log.error = mock.MagicMock()
+        self.rpc._consumerCallback('', self.method, self.props, self.body)
+
+        self.rpc.channel.basic_reject.assert_called_once_with(delivery_tag=self.delivery_tag, requeue=False)
+    #---
+
+    def test_LogsPersistentProblemMessages(self):
+        """
+        Tests that _consumerCallback will log an error if an exception is encountered after the message has been
+        redelivered.
+
+        """
+        self.redelivered = True
+        type(self.method).redelivered = mock.PropertyMock(return_value = self.redelivered)
+
+        self.callback.side_effect = ValueError()
+        self.rpc.log.error = mock.MagicMock()
+        self.rpc._consumerCallback('', self.method, self.props, self.body)
+
+        called = self.rpc.log.error.called
+        assert called == True
+    #---
+
+    def test_DropsPersistentProblemMessages(self):
+        """
+        Tests that _consumerCallback will drop messages that create exceptions after having been redelivered.
+
+        """
+        self.redelivered = True
+        type(self.method).redelivered = mock.PropertyMock(return_value = self.redelivered)
+
+        self.callback.side_effect = ValueError()
+        self.rpc.log.error = mock.MagicMock()
+        self.rpc._consumerCallback('', self.method, self.props, self.body)
+
+        self.rpc.channel.basic_reject.assert_called_once_with(delivery_tag=self.delivery_tag, requeue=False)
+    #---
+
     def test_LogsUnexpectedRPCCallbackExceptions(self):
         """
         Tests that _consumerCallback will log unexpected exceptions arising from the RPC callback method.

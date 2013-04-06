@@ -27,11 +27,13 @@
 import logging
 import pika
 from pika.exceptions import AMQPConnectionError
+import traceback
 
 
 class ConsumerError(Exception): pass
 class ConnectionError(ConsumerError): pass
 class CredentialsError(ConsumerError): pass
+class InvalidMessageError(ConsumerError): pass
 
 
 class Consumer(object):
@@ -49,6 +51,7 @@ class Consumer(object):
     exchange = ''
     log = None
     queue = None
+    dead_letter_queue = None
     rabbit = None
     callback = None
 
@@ -71,6 +74,7 @@ class Consumer(object):
         self.log = logging.getLogger('rabbitmq.consumer')
         self.callback = callback
         self.queue = queue_name
+        self.dead_letter_queue = '%s-dead-messages' % queue_name
         self.exchange = exchange
 
         if connection_settings:
@@ -120,10 +124,20 @@ class Consumer(object):
         """
         try:
             callback_response = self.callback(body)
+        except InvalidMessageError as error:
+            self.log.error('This consumer encountered an improperly formed message: %s' % body)
+            self.channel.basic_reject(delivery_tag=method.delivery_tag, requeue=False)
+            return
         except Exception as error:
-            self.log.error('ERROR: Unexpected exception raised while calling the consumer callback: %s' % error)
-            # This tells the server we didn't process the message and to hold it for another consumer
-            self.channel.basic_reject(delivery_tag=method.delivery_tag)
+            if method.redelivered:
+                self.log.error('This message is causing persistent problems with the consumer, dropping it: \n%s\n\n'
+                               '%s' % (body, traceback.format_exc()))
+                self.channel.basic_reject(delivery_tag=method.delivery_tag, requeue=False)
+            else:
+                self.log.error('Unexpected exception raised while calling the consumer callback:\n\n%s\n' %
+                               traceback.format_exc())
+                self.log.debug('Message Data: %s\n' % body)
+                self.channel.basic_reject(delivery_tag=method.delivery_tag)
             return
 
         # If a response was requested, send it
