@@ -25,8 +25,6 @@
 
 
 import inspect
-import pytest
-import mock
 from rabbitrpc.server import register
 
 class Test_RPCFunction(object):
