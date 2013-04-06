@@ -28,6 +28,7 @@ from rabbitrpc import iniparser
 import logging
 from rabbitrpc.rabbitmq import consumer
 import sys
+import traceback
 
 
 class RPCServerError(Exception): pass
@@ -50,8 +51,7 @@ class RPCServer(object):
     }
     rabbit_consumer = None
     definitions = {}
-    picked_defs = None
-    pickled_defs_hash = None
+    definitions_hash = None
     log = None
 
 
@@ -65,8 +65,7 @@ class RPCServer(object):
 
         """
         cls.definitions.update(definition)
-        cls.picked_defs = cPickle.dumps(cls.definitions)
-        cls.pickled_defs_hash = hash(cls.picked_defs)
+        cls.definitions_hash = hash(cPickle.dumps(cls.definitions))
     #---
 
 
@@ -91,8 +90,23 @@ class RPCServer(object):
         """
         # TODO: Fix this after the consumer constructor is refactored
         rabbit_config = self.config['RabbitMQ']
-        self.rabbit_consumer = consumer.Consumer(self._rabbit_callback, rabbit_config['queue_name'],
-                                                 rabbit_config['exchange'], rabbit_config)
+        queue_name = rabbit_config.pop('queue_name')
+        exchange = rabbit_config.pop('exchange')
+        rabbit_config['port'] = int(rabbit_config['port'])
+
+        self.rabbit_consumer = consumer.Consumer(self._rabbit_callback, queue_name, exchange, rabbit_config)
+
+        self.rabbit_consumer.run()
+    #---
+
+
+    def stop(self):
+        """
+        Stops the RabbitMQ consumer
+
+        :return:
+        """
+        self.rabbit_consumer.stop()
     #---
 
 
@@ -104,8 +118,8 @@ class RPCServer(object):
 
         """
         data = {
-            'definitions': self.picked_defs,
-            'hash': self.pickled_defs_hash,
+            'definitions': self.definitions,
+            'hash': self.definitions_hash,
         }
 
         return data
@@ -120,7 +134,7 @@ class RPCServer(object):
 
         """
 
-        return self.pickled_defs_hash
+        return self.definitions_hash
     #---
 
 
@@ -143,7 +157,7 @@ class RPCServer(object):
         else:
             if not call_module in sys.modules:
                 raise ModuleError('%s is not a valid module on this server' %call_module)
-            if not call_request['name'] in sys.modules[call_module].__dict__:
+            if not call_name in sys.modules[call_module].__dict__:
                 raise CallError('%s is not a valid call on this server' %call_name)
             
             dynamic_method = sys.modules[call_module].__dict__[call_name]
@@ -180,7 +194,7 @@ class RPCServer(object):
                 raise CallError('%s is not defined' % call_request['call_name'])
     #---
 
-    def _encode_result(self, result, call_request):
+    def _encode_result(self, result, call_request, exception_info = None):
         """
         Encodes a call result into a data structure with information about the call and any errors, then pickles
         the result and returns it.
@@ -195,11 +209,14 @@ class RPCServer(object):
         call_result = {
             'call': call_request,
             'result': result,
-            'error': False,
+            'error': None,
         }
 
-        if result is Exception:
-            call_result['error'] = True
+        # Error processing
+        if isinstance(result, Exception):
+            call_result['error'] = {}
+            trace = traceback.format_exception(*exception_info)
+            call_result['error']['traceback'] = ''.join(trace)
 
         return cPickle.dumps(call_result)
     #---
@@ -215,15 +232,21 @@ class RPCServer(object):
         :return: Whatever the method that was proxied returns, pickled
 
         """
+        exception_info = None
+
         # De-serialize the data
-        call_request = cPickle.loads(body)
+        try:
+            call_request = cPickle.loads(body)
+        except Exception:
+            raise consumer.InvalidMessageError(body)
 
         try:
             self._validate_call_request(call_request)
             result = self._run_call(call_request)
         except Exception as result:
+            exception_info = sys.exc_info()
             pass
 
-        return self._encode_result(result, call_request)
+        return self._encode_result(result, call_request, exception_info)
     #---
 #---
