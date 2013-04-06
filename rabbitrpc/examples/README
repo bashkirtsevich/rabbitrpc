@@ -1,0 +1,7 @@
+If you want to run these examples and you don't have rabbitrpc installed in
+your Python distro, you'll need to set PYTHONPATH.  You will also need to
+set up your RabbitMQ config in 'config.ini' or you're going to have a bad
+time :).
+
+Example from this directory:
+PYTHONPATH=../../ python server.py
