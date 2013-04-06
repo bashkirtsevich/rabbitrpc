@@ -38,8 +38,12 @@ def RPCFunction(function):
     """
     # Reads the function's args and arranges them into a format that's easy to use on the other side
     argspec = inspect.getargspec(function)
-    num_defaults = len(argspec.defaults)
-    named_args = argspec.args[:num_defaults] + zip(argspec.args[num_defaults:],argspec.defaults)
+
+    if argspec.defaults:
+        num_defaults = len(argspec.defaults)
+        named_args = argspec.args[:num_defaults] + zip(argspec.args[num_defaults:],argspec.defaults)
+    else:
+        named_args = argspec.args
 
     args = {'named': named_args, 'kwargs': argspec.keywords, 'varargs': argspec.varargs}
 
