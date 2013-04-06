@@ -194,6 +194,7 @@ class RPCServer(object):
                 raise CallError('%s is not defined' % call_request['call_name'])
     #---
 
+
     def _encode_result(self, result, call_request, exception_info = None):
         """
         Encodes a call result into a data structure with information about the call and any errors, then pickles
@@ -220,6 +221,7 @@ class RPCServer(object):
 
         return cPickle.dumps(call_result)
     #---
+
 
     def _rabbit_callback(self, body):
         """
