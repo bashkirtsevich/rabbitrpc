@@ -33,6 +33,7 @@ import traceback
 
 class RPCServerError(Exception): pass
 class CallError(RPCServerError): pass
+class CallFormatError(RPCServerError): pass
 class ModuleError(RPCServerError): pass
 
 
@@ -168,10 +169,36 @@ class RPCServer(object):
         return dynamic_method(*args['varargs'], **args['kwargs'])
     #---
 
-
-    def _validate_call_request(self, call_request):
+    def _validate_request_structure(self, call_request):
         """
-        Checks the call request data for sanity.
+        Validates that the call request's data-structure is sane.
+
+        :param call_request: The call request data
+        :type call_request: dict
+
+        """
+        if 'call_name' not in call_request:
+            raise CallFormatError('call_name parameter is missing')
+
+        if 'args' not in call_request:
+            raise CallFormatError('args parameter is missing')
+        elif call_request['args'] is not None:
+            if 'varargs' not in call_request['args']:
+                raise CallFormatError('sub-parameter for args - varargs - is missing')
+            elif 'kwargs' not in call_request['args']:
+                raise CallFormatError('sub-parameter for args - kwargs - is missing')
+
+        if 'internal' not in call_request:
+            raise CallFormatError('internal parameter is missing')
+
+        if 'module' not in call_request:
+            raise CallFormatError('module parameter is missing')
+    #---
+
+
+    def _validate_call(self, call_request):
+        """
+        Checks the call request for sanity.
 
         :param call_request: The call request data
         :type call_request: dict
@@ -235,14 +262,15 @@ class RPCServer(object):
         """
         exception_info = None
 
-        # De-serialize the data
+        # De-serialize the call request
         try:
             call_request = cPickle.loads(body)
         except Exception:
             raise consumer.InvalidMessageError(body)
 
         try:
-            self._validate_call_request(call_request)
+            self._validate_request_structure(call_request)
+            self._validate_call(call_request)
             result = self._run_call(call_request)
         except Exception as result:
             exception_info = sys.exc_info()

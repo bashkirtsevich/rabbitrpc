@@ -27,6 +27,8 @@ import cPickle
 import copy
 import pytest
 import mock
+import sys
+import traceback
 
 from rabbitrpc.server import rpcserver
 
@@ -301,9 +303,193 @@ class Test__run_call(object):
     #---
 #---
 
-class Test__validate_call_request(object):
+class Test__validate_request_structure(object):
     """
-    Tests RPCServer's `_validate_call_request` method.
+    Tests RPCServer's `_validate_request_structure` method.
+
+    """
+
+    def setup_method(self, method):
+        """
+        Test setup
+
+        """
+        self.local_rpcserver = reload(rpcserver)
+
+        self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
+        self.local_rpcserver.logging.getLogger = mock.MagicMock()
+
+        self.server = self.local_rpcserver.RPCServer('')
+    #---
+
+    def test_RaisesErrorIfCallNameNotDefined(self):
+        """
+        Tests that _validate_request_structure will raise an error if the call_name parameter is not defined.
+
+        """
+        call = {
+            'internal': True,
+            'module': None,
+            'args': None,
+        }
+
+        with pytest.raises(self.local_rpcserver.CallFormatError):
+            self.server._validate_request_structure(call)
+    #---
+
+    def test_RaisesErrorIfArgsNotDefined(self):
+        """
+        Tests that _validate_request_structure will raise an error if the args parameter is not defined.
+
+        """
+        call = {
+            'internal': True,
+            'call_name': 'Bob',
+            'module': None,
+        }
+
+        with pytest.raises(self.local_rpcserver.CallFormatError):
+            self.server._validate_request_structure(call)
+    #---
+
+    def test_RaisesErrorIfVarArgsNotDefined(self):
+        """
+        Tests that _validate_request_structure will raise an error if the varargs sub-parameter is not defined and args is.
+
+        """
+        call = {
+            'internal': True,
+            'call_name': 'Bob',
+            'module': None,
+            'args': {
+                'kwargs': None,
+            },
+        }
+
+        with pytest.raises(self.local_rpcserver.CallFormatError):
+            self.server._validate_request_structure(call)
+    #---
+
+    def test_RaisesErrorIfKwArgsNotDefined(self):
+        """
+        Tests that _validate_request_structure will raise an error if the kwargs sub-parameter is not defined and args is.
+
+        """
+        call = {
+            'internal': True,
+            'call_name': 'Bob',
+            'module': None,
+            'args': {
+                'varargs': None,
+            }
+        }
+
+        with pytest.raises(self.local_rpcserver.CallFormatError):
+            self.server._validate_request_structure(call)
+    #---
+
+    def test_RaisesErrorIfInternalNotDefined(self):
+        """
+        Tests that _validate_request_structure will raise an error if the internal parameter is not defined.
+
+        """
+        call = {
+            'call_name': 'Bob',
+            'module': None,
+            'args': None,
+        }
+
+        with pytest.raises(self.local_rpcserver.CallFormatError):
+            self.server._validate_request_structure(call)
+    #---
+
+    def test_RaisesErrorIfModuleNotDefined(self):
+        """
+        Tests that _validate_request_structure will raise an error if the module parameter is not defined.
+
+        """
+        call = {
+            'internal': True,
+            'call_name': 'Bob',
+            'args': None,
+        }
+
+        with pytest.raises(self.local_rpcserver.CallFormatError):
+            self.server._validate_request_structure(call)
+    #---
+
+    def test_DoesNotRaiseErrorIfArgsIsNone(self):
+        """
+        Tests that _validate_request_structure will not raise an error if Args is set to None.
+
+        """
+        call = {
+            'internal': True,
+            'call_name': 'Bob',
+            'args': None,
+            'module': None,
+        }
+
+        self.server._validate_request_structure(call)
+    #---
+
+    def test_DoesNotRaiseErrorIfVarArgsIsNoneButKwArgsExists(self):
+        """
+        Tests that _validate_request_structure will not raise an error if varargs is set to None, if kwargs also exists.
+
+        """
+        call = {
+            'internal': True,
+            'call_name': 'Bob',
+            'args': {
+                'varargs': None,
+                'kwargs': {'bob': True},
+            },
+            'module': None,
+        }
+
+        self.server._validate_request_structure(call)
+    #---
+
+    def test_DoesNotRaiseErrorIfKwArgsIsNoneButVarArgsExists(self):
+        """
+        Tests that _validate_request_structure will not raise an error if kwargs is set to None, if varargs also exists.
+
+        """
+        call = {
+            'internal': True,
+            'call_name': 'Bob',
+            'args': {
+                'varargs': [True, False],
+                'kwargs': None,
+            },
+            'module': None,
+        }
+
+        self.server._validate_request_structure(call)
+    #---
+
+    def test_DoesNotRaiseErrorIfKwArgsAndVarArgsAreSetToNone(self):
+        """
+        Tests that _validate_request_structure will not raise an error if kwargs is set to None, if varargs also exists.
+
+        """
+        call = {
+            'internal': True,
+            'call_name': 'Bob',
+            'args': {
+                'varargs': None,
+                'kwargs': None,
+            },
+            'module': None,
+        }
+
+        self.server._validate_request_structure(call)
+    #---
+
+class Test__validate_call(object):
+    """
+    Tests RPCServer's `_validate_call` method.
 
     """
 
@@ -322,37 +508,40 @@ class Test__validate_call_request(object):
 
     def test_RaisesErrorIfInternalCallNotDefined(self):
         """
-        Tests that _validate_call_request will raise an error if the requested internal call is not defined
+        Tests that _validate_call will raise an error if the requested internal call is not defined
 
         """
         call = {
             'internal': True,
             'call_name': 'Bob',
+            'module': None,
+            'args': None,
         }
 
         with pytest.raises(self.local_rpcserver.CallError):
-            self.server._validate_call_request(call)
+            self.server._validate_call(call)
     #---
 
     def test_RaisesErrorIfNormalCallNotAvailable(self):
         """
-        Tests that _validate_call_request will raise an error if the requested call is not available from the
+        Tests that _validate_call will raise an error if the requested call is not available from the
         given module
 
         """
         call = {
             'internal': False,
             'call_name': 'Bob',
-            'module': 'sys'
+            'module': 'sys',
+            'args': None,
         }
 
         with pytest.raises(self.local_rpcserver.CallError):
-            self.server._validate_call_request(call)
+            self.server._validate_call(call)
     #---
 
     def test_RaisesErrorIfModuleIsNotAvailable(self):
         """
-        Tests that _validate_call_request will raise an error if the requested module is not defined
+        Tests that _validate_call will raise an error if the requested module is not defined
 
         """
         self.server.definitions = {
@@ -363,16 +552,17 @@ class Test__validate_call_request(object):
         call = {
             'internal': False,
             'call_name': 'Bob',
-            'module': 'werkit'
+            'module': 'werkit',
+            'args': None,
         }
 
         with pytest.raises(self.local_rpcserver.ModuleError):
-            self.server._validate_call_request(call)
+            self.server._validate_call(call)
     #---
 
     def test_RaisesErrorIfCallIsNotDefined(self):
         """
-        Tests that _validate_call_request will raise an error if the requested module is not defined in the server
+        Tests that _validate_call will raise an error if the requested module is not defined in the server
         definitions
 
         """
@@ -383,7 +573,49 @@ class Test__validate_call_request(object):
         }
 
         with pytest.raises(self.local_rpcserver.CallError):
-            self.server._validate_call_request(call)
+            self.server._validate_call(call)
+    #---
+
+    def test_DoesNotRaiseErrorIfInternalCallIsDefined(self):
+        """
+        Tests that _validate_call will not raise an error if the internal call is defined.
+
+        """
+        definition = {
+            'Bob': {
+            'args': None
+            }
+        }
+        call = {
+            'internal': True,
+            'call_name': 'Bob',
+            'module': None,
+            'args': None,
+        }
+        self.server.internal_definitions = definition
+        self.server.Bob = lambda : True
+        self.server._validate_call(call)
+    #---
+
+    def test_DoesNotRaiseErrorIfNormalCallIsDefined(self):
+        """
+        Tests that _validate_call will not raise an error if the normal call is defined.
+
+        """
+        definition = {
+            'Bob': {
+            'args': None
+            }
+        }
+        call = {
+            'internal': False,
+            'call_name': 'Bob',
+            'module': 'sys',
+            'args': None,
+        }
+        self.server.definitions = definition
+        self.local_rpcserver.sys.Bob = lambda : True
+        self.server._validate_call(call)
     #---
 #---
 
@@ -398,13 +630,69 @@ class Test__encode_result(object):
         Test setup
 
         """
+        self.local_rpcserver = reload(rpcserver)
+
+        self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
+        self.local_rpcserver.logging.getLogger = mock.MagicMock()
+
+        self.server = self.local_rpcserver.RPCServer('')
     #---
 
-    def test_(self):
+    def test_IncludesResult(self):
         """
-        Tests that
+        Tests that _encode_results includes the result of the call
 
         """
+        result = 'foo'
+        expected_result = cPickle.dumps({
+            'call': '',
+            'result': result,
+            'error': None,
+        })
+
+        encoded_result = self.server._encode_result(result, '')
+
+        assert encoded_result == expected_result
+    #---
+
+    def test_IncludesCallRequest(self):
+        """
+        Tests that _encode_results includes the original call request.
+
+        """
+        call_request = 'foo'
+        expected_result = cPickle.dumps({
+            'call': call_request,
+            'result': '',
+            'error': None,
+        })
+
+        encoded_result = self.server._encode_result('', call_request)
+
+        assert encoded_result == expected_result
+    #---
+
+    def test_IncludesError(self):
+        """
+        Tests that _encode_results includes the error which stopped the call processing.
+
+        """
+        try:
+            raise Exception('word')
+        except Exception as error:
+            exception_info = sys.exc_info()
+
+        expected_result = cPickle.dumps({
+            'call': '',
+            'result': error,
+            'error': {
+                'traceback': ''.join(traceback.format_exception(*exception_info))
+            },
+        })
+
+        encoded_result = self.server._encode_result(error, '', exception_info)
+
+        assert encoded_result == expected_result
     #---
 #---
 
@@ -419,12 +707,112 @@ class Test__rabbit_callback(object):
         Test setup
 
         """
+        self.local_rpcserver = reload(rpcserver)
+
+        self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
+        self.local_rpcserver.logging.getLogger = mock.MagicMock()
+
+        self.server = self.local_rpcserver.RPCServer('')
     #---
 
-    def test_(self):
+    def test_RaisesInvalidMessageErrorIfBodyCantBeDecoded(self):
         """
-        Tests that
+        Tests that _rabbit_callback will raise an error if the message body can't be decoded.
 
         """
+        with pytest.raises(self.local_rpcserver.consumer.InvalidMessageError):
+            self.server._rabbit_callback('abeacvf243312')
+    #---
+
+    def test_ValidatesTheCall(self):
+        """
+        Tests that _rabbit_callback validates the call.
+
+        """
+        call = cPickle.dumps({
+            'internal': True,
+            'call_name': 'Bob123',
+            'args': None,
+            'module': None,
+        })
+
+        result = cPickle.loads(self.server._rabbit_callback(call))
+        assert type(result['result']) is self.local_rpcserver.CallError
+    #---
+
+    def test_RunsTheCall(self):
+        """
+        Tests that _rabbit_callback actually runs the requested call.
+
+        """
+        self.server.Bob = mock.MagicMock(return_value=True)
+        self.server.internal_definitions = {
+            'Bob': {
+                'args': None
+            }
+        }
+        call = cPickle.dumps({
+            'internal': True,
+            'call_name': 'Bob',
+            'args': None,
+            'module': None,
+        })
+
+        self.server._rabbit_callback(call)
+        self.server.Bob.assert_called_once_with()
+    #---
+
+    def test_HandlesErrorsFromTheCall(self):
+        """
+        Tests that _rabbit_callback handles unexpected errors from the call.
+
+        """
+        error = Exception('Bad things')
+        self.server.Bob = mock.MagicMock()
+        self.server.Bob.side_effect = error
+        self.server.internal_definitions = {
+            'Bob': {
+                'args': None
+            }
+        }
+        call = cPickle.dumps({
+            'internal': True,
+            'call_name': 'Bob',
+            'args': None,
+            'module': None,
+        })
+
+        result = cPickle.loads(self.server._rabbit_callback(call))
+
+        assert type(result['result']) == Exception
+    #---
+
+    def test_EncodesTheCallResult(self):
+        """
+        Tests that _rabbit_callback encodes the call results.
+
+        """
+        self.server.Bob = mock.MagicMock(return_value=True)
+        self.server.internal_definitions = {
+            'Bob': {
+                'args': None
+            }
+        }
+        call = {
+            'internal': True,
+            'call_name': 'Bob',
+            'args': None,
+            'module': None,
+        }
+
+        expected_results = {
+            'call': call,
+            'result': True,
+            'error': None,
+        }
+
+        results = cPickle.loads(self.server._rabbit_callback(cPickle.dumps(call)))
+
+        assert expected_results == results
     #---
 #---
