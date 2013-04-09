@@ -312,13 +312,78 @@ class Test__validate_call_request(object):
         Test setup
 
         """
+        self.local_rpcserver = reload(rpcserver)
+
+        self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
+        self.local_rpcserver.logging.getLogger = mock.MagicMock()
+
+        self.server = self.local_rpcserver.RPCServer('')
     #---
 
-    def test_(self):
+    def test_RaisesErrorIfInternalCallNotDefined(self):
         """
-        Tests that
+        Tests that _validate_call_request will raise an error if the requested internal call is not defined
 
         """
+        call = {
+            'internal': True,
+            'call_name': 'Bob',
+        }
+
+        with pytest.raises(self.local_rpcserver.CallError):
+            self.server._validate_call_request(call)
+    #---
+
+    def test_RaisesErrorIfNormalCallNotAvailable(self):
+        """
+        Tests that _validate_call_request will raise an error if the requested call is not available from the
+        given module
+
+        """
+        call = {
+            'internal': False,
+            'call_name': 'Bob',
+            'module': 'sys'
+        }
+
+        with pytest.raises(self.local_rpcserver.CallError):
+            self.server._validate_call_request(call)
+    #---
+
+    def test_RaisesErrorIfModuleIsNotAvailable(self):
+        """
+        Tests that _validate_call_request will raise an error if the requested module is not defined
+
+        """
+        self.server.definitions = {
+            'Bob': {
+                'args': None,
+            }
+        }
+        call = {
+            'internal': False,
+            'call_name': 'Bob',
+            'module': 'werkit'
+        }
+
+        with pytest.raises(self.local_rpcserver.ModuleError):
+            self.server._validate_call_request(call)
+    #---
+
+    def test_RaisesErrorIfCallIsNotDefined(self):
+        """
+        Tests that _validate_call_request will raise an error if the requested module is not defined in the server
+        definitions
+
+        """
+        call = {
+            'internal': False,
+            'call_name': 'Bob',
+            'module': 'werkit'
+        }
+
+        with pytest.raises(self.local_rpcserver.CallError):
+            self.server._validate_call_request(call)
     #---
 #---
 
