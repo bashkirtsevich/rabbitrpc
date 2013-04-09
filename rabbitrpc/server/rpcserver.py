@@ -155,11 +155,6 @@ class RPCServer(object):
             dynamic_method =  self.__getattribute__(call_name)
 
         else:
-            if not call_module in sys.modules:
-                raise ModuleError('%s is not a valid module on this server' %call_module)
-            if not call_name in sys.modules[call_module].__dict__:
-                raise CallError('%s is not a valid call on this server' %call_name)
-            
             dynamic_method = sys.modules[call_module].__dict__[call_name]
 
         if not call_request['args']:
@@ -191,7 +186,11 @@ class RPCServer(object):
         # Normal RPC methods
         else:
             if call_request['call_name'] not in self.definitions:
-                raise CallError('%s is not defined' % call_request['call_name'])
+                raise CallError('%s is not defined on module %s' % (call_request['call_name'], call_request['module']))
+            elif call_request['module'] not in sys.modules:
+                raise ModuleError('%s is not a valid module on this server' % call_request['module'])
+            elif not call_request['call_name'] in sys.modules[call_request['module']].__dict__:
+                raise CallError('%s is not a valid call on this server' %call_request['call_name'])
     #---
 
 
