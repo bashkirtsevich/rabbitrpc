@@ -23,6 +23,7 @@
 #   Tests rabbitproducer
 #
 
+import copy
 import pytest
 import mock
 from rabbitrpc.rabbitmq import producer
@@ -40,30 +41,14 @@ class Test__init__(object):
         :param method:
 
         """
-        self.host = 'hostname'
-        self.port = 1234
-        self.vhost = 'b/b'
-        self.queue = 'testRPC'
-        self.timeout = 7000
+        self.localproducer = reload(producer)
+        self.config = self.localproducer.Producer.config
 
-        self.connection_settings = {
-            'host': self.host,
-            'port': self.port,
-            'virtual_host': self.vhost,
-        }
-        self.default_settings = {
-            'host': 'localhost',
-            'port': 5672,
-            'virtual_host': '/',
-        }
+        self.localproducer.logging = mock.MagicMock()
+        self.localproducer.Producer._configureConnection = mock.MagicMock()
+        self.localproducer.Producer._connect = mock.MagicMock()
 
-        self.localrpc = reload(producer)
-
-        self.localrpc.logging = mock.MagicMock()
-        self.localrpc.Producer._configureConnection = mock.MagicMock()
-        self.localrpc.Producer._connect = mock.MagicMock()
-
-        self.rpc = self.localrpc.Producer(self.queue, reply_timeout=self.timeout)
+        self.rpc = self.localproducer.Producer()
     #---
 
     def test_CreatesLoggerInstance(self):
@@ -71,62 +56,16 @@ class Test__init__(object):
         Tests that __init__ creates a logger instance.
 
         """
-        called = self.localrpc.logging.getLogger.called
+        called = self.localproducer.logging.getLogger.called
         assert called == True
     #---
 
-    def test_SetsReplyTimeoutInSeconds(self):
+    def test_UpdatesConfigWithProvidedDict(self):
         """
-        Tests that __init__ sets the reply timeout, in seconds.
+        Tests that __init__ updates the config with the provided dictionary
 
         """
-        assert self.rpc._reply_timeout == (self.timeout/1000)
-    #---
 
-    def test_SetsQueueName(self):
-        """
-        Tests that __init__ sets the incoming rpc queue.
-
-        """
-        assert self.rpc.queue == self.queue
-    #---
-
-    def test_SetsDefaultConnectionSettings(self):
-        """
-        Tests that __init__ sets the following default config:
-            host: localhost
-            port: 5672
-            virtual_host: /
-
-        """
-        assert self.rpc.connection_settings == self.default_settings
-    #---
-
-    def test_ProvidedConnectionSettingsOverrideDefaultConnectionSettings(self):
-        """
-        Tests that __init__ overrides the default connection settings if they are provided by the user.
-
-        """
-        rpc = self.localrpc.Producer(connection_settings=self.connection_settings)
-        assert rpc.connection_settings == self.connection_settings
-    #---
-
-    def test_RemovesUsernameFromConnectionSettings(self):
-        """
-        Tests that __init__ removes the username from the connection settings.
-
-        """
-        rpc = self.localrpc.Producer(connection_settings=self.connection_settings)
-        assert 'username' not in rpc.connection_settings
-    #---
-
-    def test_RemovesPasswordFromConnectionSettings(self):
-        """
-        Tests that __init__ removes the password from the connection settings.
-
-        """
-        rpc = self.localrpc.Producer(connection_settings=self.connection_settings)
-        assert 'password' not in rpc.connection_settings
     #---
 
     def test_ReplyQueueDefaultsToNone(self):
@@ -134,28 +73,7 @@ class Test__init__(object):
         Tests that __init__ sets reply_queue to None by default.
 
         """
-        assert self.rpc.reply_queue is None
-    #---
-
-    def test_SetsReplyQueueIfProvided(self):
-        """
-        Tests that __init__ sets reply_queue to the provided value, if available.
-
-        """
-        queue = 'Test123'
-        rpc = self.localrpc.Producer(self.queue, reply_queue=queue, reply_timeout=self.timeout)
-        assert rpc.reply_queue == queue
-        #---
-
-    def test_SetsExchangeToProvidedParamIfExists(self):
-        """
-        Tests that __init__ sets the exchange to what was passed in, if something was passed in.
-
-        """
-        exchange = 'BobXchange'
-        rpc = producer.Producer(self.queue, exchange=exchange)
-
-        assert rpc.exchange == exchange
+        assert self.rpc.config['reply_queue'] is None
     #---
 
     def test_DefaultExchangeIsBlankString(self):
@@ -163,11 +81,8 @@ class Test__init__(object):
         Tests that __init__ sets the default exchange to '' if an exchange was not passed in.
 
         """
-        exchange = ''
-        rpc = producer.Producer()
-
-        assert rpc.exchange == exchange
-        #---
+        assert self.rpc.config['exchange'] is ''
+    #---
 
     def test_CallsConnectionSetup(self):
         """
@@ -198,8 +113,9 @@ class Test_Send(object):
         :param method:
 
         """
-        self.localrpc = reload(producer)
-        self.queue = 'testRPC'
+        self.localproducer = reload(producer)
+        self.config = self.localproducer.Producer.config
+
         self.rpc_data = {'bob':'barker'}
         self.pickled_rpc_data = "(dp1" \
                                     "S'bob'" \
@@ -211,16 +127,16 @@ class Test_Send(object):
         self.basic_props = {'prop':'value'}
 
         # Holy mocks Batman
-        self.localrpc.logging = mock.MagicMock()
-        self.localrpc.Producer._configureConnection = mock.MagicMock()
-        self.localrpc.Producer._connect = mock.MagicMock()
-        self.localrpc.Producer._startReplyConsumer = mock.MagicMock()
-        self.localrpc.Producer._replyWaitLoop = mock.MagicMock()
-        self.localrpc.cPickle.dumps = mock.MagicMock(return_value=self.pickled_rpc_data)
-        self.localrpc.uuid.uuid4 = mock.MagicMock(return_value=self.uuid)
-        self.localrpc.pika.BasicProperties = mock.MagicMock(return_value=self.basic_props)
+        self.localproducer.logging = mock.MagicMock()
+        self.localproducer.Producer._configureConnection = mock.MagicMock()
+        self.localproducer.Producer._connect = mock.MagicMock()
+        self.localproducer.Producer._startReplyConsumer = mock.MagicMock()
+        self.localproducer.Producer._replyWaitLoop = mock.MagicMock()
+        self.localproducer.cPickle.dumps = mock.MagicMock(return_value=self.pickled_rpc_data)
+        self.localproducer.uuid.uuid4 = mock.MagicMock(return_value=self.uuid)
+        self.localproducer.pika.BasicProperties = mock.MagicMock(return_value=self.basic_props)
 
-        self.rpc = self.localrpc.Producer(self.queue)
+        self.rpc = self.localproducer.Producer()
         self.rpc.channel = mock.MagicMock()
         self.rpc_reply = self.rpc.send(self.rpc_data)
     #---
@@ -230,7 +146,7 @@ class Test_Send(object):
         Tests that send pickles the incoming RPC data.
 
         """
-        self.localrpc.cPickle.dumps.assert_called_once_with(self.rpc_data)
+        self.localproducer.cPickle.dumps.assert_called_once_with(self.rpc_data)
     #---
 
     def test_StartsReplyConsumerIfExpectReplyIsTrue(self):
@@ -247,7 +163,7 @@ class Test_Send(object):
         Tests that send creates a correlation id to use in the RabbitMQ transaction if expect_reply is `True`.
 
         """
-        called = self.localrpc.uuid.uuid4.called
+        called = self.localproducer.uuid.uuid4.called
         assert called == True
     #---
 
@@ -257,7 +173,7 @@ class Test_Send(object):
         `True`.
 
         """
-        self.localrpc.pika.BasicProperties.assert_called_once_with(reply_to=self.rpc.reply_queue,
+        self.localproducer.pika.BasicProperties.assert_called_once_with(reply_to=self.rpc.config['reply_queue'],
                                                                    correlation_id=self.uuid)
     #---
 
@@ -267,7 +183,7 @@ class Test_Send(object):
 
         """
 #        print self.rpc.channel.basic_publish.mock_calls
-        self.rpc.channel.basic_publish.assert_called_once_with(exchange=self.rpc.exchange, routing_key=self.queue,
+        self.rpc.channel.basic_publish.assert_called_once_with(exchange=self.rpc.config['exchange'], routing_key=self.rpc.config['queue_name'],
                                                                body=self.pickled_rpc_data, properties=self.basic_props)
 
     #---
@@ -306,14 +222,13 @@ class Test__startReplyConsumer(object):
         :param method:
 
         """
-        self.localrpc = reload(producer)
-        self.queue = 'testRPC'
+        self.localproducer = reload(producer)
 
-        self.localrpc.logging = mock.MagicMock()
-        self.localrpc.Producer._configureConnection = mock.MagicMock()
-        self.localrpc.Producer._connect = mock.MagicMock()
+        self.localproducer.logging = mock.MagicMock()
+        self.localproducer.Producer._configureConnection = mock.MagicMock()
+        self.localproducer.Producer._connect = mock.MagicMock()
 
-        self.rpc = self.localrpc.Producer(self.queue)
+        self.rpc = self.localproducer.Producer()
         self.rpc.channel = mock.MagicMock()
         self.rpc._startReplyConsumer()
         #---
@@ -323,8 +238,8 @@ class Test__startReplyConsumer(object):
         Tests that _startReplyConsumer initializes the consumer with the proper parameters
 
         """
-        self.rpc.channel.basic_consume.assert_called_once_with(self.rpc._consumerCallback, queue=self.rpc.reply_queue,
-                                                               no_ack=True)
+        self.rpc.channel.basic_consume.assert_called_once_with(self.rpc._consumerCallback,
+                                                               queue=self.rpc.config['reply_queue'],  no_ack=True)
     #---
 #---
 
@@ -340,14 +255,13 @@ class Test__replyWaitLoop(object):
         :param method:
 
         """
-        self.localrpc = reload(producer)
-        self.queue = 'testRPC'
+        self.localproducer = reload(producer)
 
-        self.localrpc.logging = mock.MagicMock()
-        self.localrpc.Producer._configureConnection = mock.MagicMock()
-        self.localrpc.Producer._connect = mock.MagicMock()
+        self.localproducer.logging = mock.MagicMock()
+        self.localproducer.Producer._configureConnection = mock.MagicMock()
+        self.localproducer.Producer._connect = mock.MagicMock()
 
-        self.rpc = self.localrpc.Producer(self.queue)
+        self.rpc = self.localproducer.Producer()
         self.rpc.connection = mock.MagicMock()
         self.rpc._rpc_reply = 'Yes' # Kills the loop, or the test will never finish
         self.rpc._replyWaitLoop()
@@ -392,23 +306,22 @@ class Test__consumerCallback(object):
         :param method:
 
         """
-        self.localrpc = reload(producer)
-        self.queue = 'testRPC'
+        self.localproducer = reload(producer)
         self.body = 'iamsopickled'
         self.correlation_id = 'something'
         self.rpc_data = ('i','am','so','pickled')
 
-        self.localrpc.logging = mock.MagicMock()
-        self.localrpc.Producer._configureConnection = mock.MagicMock()
-        self.localrpc.Producer._connect = mock.MagicMock()
-        self.localrpc.cPickle.loads = mock.MagicMock(return_value=self.rpc_data)
+        self.localproducer.logging = mock.MagicMock()
+        self.localproducer.Producer._configureConnection = mock.MagicMock()
+        self.localproducer.Producer._connect = mock.MagicMock()
+        self.localproducer.cPickle.loads = mock.MagicMock(return_value=self.rpc_data)
         self.props = mock.MagicMock()
 
 
         self.reply_to = 'bob.bob'
         type(self.props).correlation_id = mock.PropertyMock(return_value = self.correlation_id)
 
-        self.rpc = self.localrpc.Producer(self.queue)
+        self.rpc = self.localproducer.Producer()
         self.rpc.correlation_id = self.correlation_id
         self.rpc._consumerCallback('', '', self.props, self.body)
     #---
@@ -439,7 +352,7 @@ class Test__consumerCallback(object):
 
         """
         self.rpc._consumerCallback('', '', self.props, self.body)
-        self.localrpc.cPickle.loads.assert_called_once_with(self.body)
+        self.localproducer.cPickle.loads.assert_called_once_with(self.body)
     #---
     def test_UnPicklesRPCResults(self): self._reload_cPickle(self._UnPicklesRPCResults)
 
@@ -448,15 +361,15 @@ class Test__consumerCallback(object):
         Wraps a test method that uses cPickle mocking so it doesn't screw up other tests.
         """
         cpickle = reload(producer.cPickle)
-        self.localrpc.cPickle = cpickle
-        self.localrpc.cPickle.loads = mock.MagicMock(return_value=self.rpc_data)
+        self.localproducer.cPickle = cpickle
+        self.localproducer.cPickle.loads = mock.MagicMock(return_value=self.rpc_data)
 
         try:
             test_method()
         except Exception:
             raise
         finally:
-            self.localrpc.cPickle = reload(producer.cPickle)
+            self.localproducer.cPickle = reload(producer.cPickle)
     #---
 #---
 
@@ -473,23 +386,22 @@ class Test__connect(object):
 
         """
         self.connection_params = {'none':None}
-        self.queue = 'daQueue'
 
-        self.localrpc = reload(producer)
+        self.localproducer = reload(producer)
         self.callback = mock.MagicMock()
-        self.localrpc.Producer._configureConnection = mock.MagicMock()
+        self.localproducer.Producer._configureConnection = mock.MagicMock()
 
         self.channel = mock.MagicMock()
         self.connection = mock.MagicMock()
         self.connection.channel.return_value=self.channel
-        self.localrpc.pika.BlockingConnection = mock.MagicMock(return_value=self.connection)
-        self.BlockingConnection = self.localrpc.pika.BlockingConnection
+        self.localproducer.pika.BlockingConnection = mock.MagicMock(return_value=self.connection)
+        self.BlockingConnection = self.localproducer.pika.BlockingConnection
 
-        self.localrpc.logging = mock.MagicMock()
-        self.localrpc.Producer.connection_params = self.connection_params
+        self.localproducer.logging = mock.MagicMock()
+        self.localproducer.Producer.connection_params = self.connection_params
 
         # _connect is called by the constructor
-        self.rpc = self.localrpc.Producer(self.queue)
+        self.rpc = self.localproducer.Producer()
     #---
 
     def test_UsesBlockingConnection(self):
@@ -534,7 +446,7 @@ class Test__connect(object):
         """
         self.channel.queue_declare.reset_mock()
         queue = 'someQueue'
-        self.rpc.reply_queue = queue
+        self.rpc.config['reply_queue'] = queue
         self.rpc._connect()
         self.channel.queue_declare.assert_called_once_with(exclusive=True, **{'queue': queue})
     #---
@@ -565,15 +477,15 @@ class Test__configureConnection(object):
             'credentials': self.creds
         }
 
-        self.localrpc = reload(producer)
-        self.localrpc.pika.ConnectionParameters = mock.MagicMock(return_value=self.connection_settings)
+        self.localproducer = reload(producer)
+        self.localproducer.pika.ConnectionParameters = mock.MagicMock(return_value=self.connection_settings)
 
 
-        self.localrpc.logging = mock.MagicMock()
-        self.localrpc.Producer._connect = mock.MagicMock()
+        self.localproducer.logging = mock.MagicMock()
+        self.localproducer.Producer._connect = mock.MagicMock()
 
         # _configureConnection is called in the constructor
-        self.rpc = self.localrpc.Producer('')
+        self.rpc = self.localproducer.Producer('')
     #---
 
     def test_SetsConnectionParameters(self):
@@ -605,17 +517,18 @@ class Test__createCredentials(object):
             'username': self.username,
             'password': self.password,
             }
-        localrpc = reload(producer)
+        self.localproducer = reload(producer)
+        self.config = copy.deepcopy(self.localproducer.Producer.config)
 
-        localrpc.pika.PlainCredentials = mock.MagicMock(return_value=self.creds)
-        self.PlainCredentials = localrpc.pika.PlainCredentials
+        self.localproducer.pika.PlainCredentials = mock.MagicMock(return_value=self.creds)
+        self.PlainCredentials = self.localproducer.pika.PlainCredentials
 
-        localrpc.Producer._configureConnection = mock.MagicMock()
-        localrpc.Producer._connect = mock.MagicMock()
+        self.localproducer.Producer._configureConnection = mock.MagicMock()
+        self.localproducer.Producer._connect = mock.MagicMock()
 
         self.callback = mock.MagicMock()
         # Calls _createCredentials if username and password are set
-        self.rpc = localrpc.Producer(connection_settings=self.connection_settings)
+        self.rpc = self.localproducer.Producer()
     #---
 
     def test_CreatesPlainCredentialsObject(self):
@@ -624,7 +537,8 @@ class Test__createCredentials(object):
         and password.
 
         """
-        self.PlainCredentials.assert_called_once_with(self.username, self.password)
+        self.PlainCredentials.assert_called_once_with(self.config['connection_settings']['username'],
+                                                      self.config['connection_settings']['password'])
     #---
 
     def test_StoresCredentialsInConnectionSettings(self):
@@ -632,6 +546,22 @@ class Test__createCredentials(object):
         Tests that _createCredentials sets the credentials in the connection config to the PlainCredentials object.
 
         """
-        assert self.rpc.connection_settings['credentials'] == self.creds
+        assert self.rpc.config['connection_settings']['credentials'] == self.creds
+    #---
+
+    def test_RemovesUsernameFromConnectionSettings(self):
+        """
+        Tests that _createCredentials removes the username from the connection settings.
+
+        """
+        assert 'username' not in self.rpc.config['connection_settings']
+    #---
+
+    def test_RemovesPasswordFromConnectionSettings(self):
+        """
+        Tests that _createCredentials removes the password from the connection settings.
+
+        """
+        assert 'password' not in self.rpc.config['connection_settings']
     #---
 #---

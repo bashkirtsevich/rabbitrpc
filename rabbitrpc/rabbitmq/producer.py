@@ -38,21 +38,27 @@ class Producer(object):
     Implements the client side of RPC over RabbitMQ.
 
     """
-    queue = None
-    exchange = None
-    reply_queue = None
+    connection_params = None
     correlation_id = None
     log = None
-    connection_settings = {
-        'host': 'localhost',
-        'port': 5672,
-        'virtual_host': '/',
+    config = {
+        'queue_name': 'rabbitrpc',
+        'reply_queue': None,
+        'exchange': '',
+        'reply_timeout': 5, # Floats are ok
+
+        'connection_settings': {
+            'host': 'localhost',
+            'port': 5672,
+            'virtual_host': '/',
+            'username': 'guest',
+            'password': 'guest',
+        }
     }
     _rpc_reply = None
     _reply_timeout = None
 
-    def __init__(self, queue_name = 'rabbitrpc', reply_queue = None, exchange='', reply_timeout=5000,
-                 connection_settings = None):
+    def __init__(self, config = None):
         """
         Constructor
 
@@ -73,22 +79,11 @@ class Producer(object):
 
         """
         self.log = logging.getLogger('rabbitrpclient')
-        self.queue = queue_name
-        self._reply_timeout = reply_timeout / 1000
-        self.exchange = exchange
-        self.reply_queue = reply_queue
+        if config:
+            self.config.update(config)
 
-        if connection_settings:
-            self.connection_settings = connection_settings
-
-        if 'username' and 'password' in self.connection_settings:
+        if 'username' and 'password' in self.config['connection_settings']:
             self._createCredentials()
-
-        # Remove the original auth values
-        if 'username' in self.connection_settings:
-            del self.connection_settings['username']
-        if 'password' in self.connection_settings:
-            del self.connection_settings['password']
 
         self._configureConnection()
         self._connect()
@@ -111,11 +106,12 @@ class Producer(object):
         if expect_reply:
             self._startReplyConsumer()
             self.correlation_id = str(uuid.uuid4())
-            params = {'properties': pika.BasicProperties(reply_to=self.reply_queue, correlation_id=self.correlation_id)}
+            params = {'properties': pika.BasicProperties(reply_to=self.config['reply_queue'],
+                                                         correlation_id=self.correlation_id)}
             publish_params.update(params)
 
-        self.channel.basic_publish(exchange=self.exchange, routing_key=self.queue, body=str(pickled_rpc),
-                                   **publish_params)
+        self.channel.basic_publish(exchange=self.config['exchange'], routing_key=self.config['queue_name'],
+                                   body=str(pickled_rpc), **publish_params)
 
         if expect_reply:
             self._replyWaitLoop()
@@ -129,7 +125,7 @@ class Producer(object):
         Starts the RPC reply consumer.
 
         """
-        self.channel.basic_consume(self._consumerCallback, queue=self.reply_queue, no_ack=True)
+        self.channel.basic_consume(self._consumerCallback, queue=self.config['reply_queue'], no_ack=True)
     #---
 
     def _replyWaitLoop(self):
@@ -178,8 +174,8 @@ class Producer(object):
         """
         queue_params = {}
 
-        if self.reply_queue:
-            queue_params.update({'queue':self.reply_queue})
+        if self.config['reply_queue']:
+            queue_params.update({'queue':self.config['reply_queue']})
 
         try:
             self.connection = pika.BlockingConnection(self.connection_params)
@@ -197,7 +193,7 @@ class Producer(object):
         Sets up the connection information.
 
         """
-        self.connection_params = pika.ConnectionParameters(**self.connection_settings)
+        self.connection_params = pika.ConnectionParameters(**self.config['connection_settings'])
     #---
 
     def _createCredentials(self):
@@ -205,7 +201,12 @@ class Producer(object):
         Creates a PlainCredentials class for use by ConnectionParameters.
 
         """
-        creds = pika.PlainCredentials(self.connection_settings['username'], self.connection_settings['password'])
-        self.connection_settings.update({'credentials': creds})
+        creds = pika.PlainCredentials(self.config['connection_settings']['username'],
+                                      self.config['connection_settings']['password'])
+        self.config['connection_settings'].update({'credentials': creds})
+
+        # Remove the original auth values
+        del self.config['connection_settings']['username']
+        del self.config['connection_settings']['password']
     #---
 #---
