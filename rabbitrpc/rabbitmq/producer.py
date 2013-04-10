@@ -58,29 +58,18 @@ class Producer(object):
     _rpc_reply = None
     _reply_timeout = None
 
-    def __init__(self, config = None):
+    def __init__(self, rabbit_config = None):
         """
         Constructor
 
-        :param queue_name: The name of the RabbitMQ queue to connect to.
-        :type queue_name: str
-        :param reply_queue: The queue that RPC server should send replies to.  Defaults to queue_name if `None`.
-        :type reply_queue: str
-        :param exchange: The exchange to use for this client.
-        :type exchange: str
-        :param reply_timeout: Time, in millis, to wait for a reply to the RPC query.
-        :type reply_timeout: int
-        :param connection_settings: RabbitMQ connection configuration parameters.  These are the same parameters that
-            are passed to the ConnectionParameters class in pika, minus 'credentials', which is created for you,
-            provided that you provide both 'username' and 'password' values in the dict.
-            See: http://pika.readthedocs.org/en/0.9.8/connecting.html#connectionparameters
-        :type connection_settings: dict
-
+        :param rabbit_config: The RabbitMQ config. See
+            https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Defintions for details.
+        :type rabbit_config: dict
 
         """
         self.log = logging.getLogger('rabbitrpclient')
-        if config:
-            self.config.update(config)
+        if rabbit_config:
+            self.config.update(rabbit_config)
 
         if 'username' and 'password' in self.config['connection_settings']:
             self._createCredentials()

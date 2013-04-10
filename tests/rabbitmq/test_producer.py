@@ -65,7 +65,24 @@ class Test__init__(object):
         Tests that __init__ updates the config with the provided dictionary
 
         """
+        config = {
+            'queue_name': 'rabbitrpc1',
+            'reply_queue': 'pwn',
+            'exchange': 'bob',
+            'reply_timeout': 1, # Floats are ok
 
+            'connection_settings': {
+                'host': 'localhost23',
+                'port': 56722,
+                'virtual_host': '/bob',
+                'username': 'bob',
+                'password': 'barker',
+            }
+         }
+
+        rpc = self.localproducer.Producer(config)
+
+        assert rpc.config == config
     #---
 
     def test_ReplyQueueDefaultsToNone(self):
