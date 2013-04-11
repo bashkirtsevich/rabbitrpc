@@ -140,6 +140,40 @@ class Test_start(object):
         """
         self.rpc._connect.assert_called_once_with()
     #---
+#---
+
+
+class Test_stop(object):
+    """
+    Tests Producer's stop method.
+
+    """
+
+    def setup_method(self, method):
+        """
+        Test Setup
+
+        :param method:
+
+        """
+        self.localproducer = reload(producer)
+        self.config = self.localproducer.Producer.config
+
+        self.localproducer.logging = mock.MagicMock()
+        self.localproducer.Producer._configureConnection = mock.MagicMock()
+
+        self.rpc = self.localproducer.Producer()
+        self.rpc.connection = mock.MagicMock()
+        self.rpc.stop()
+    #---
+
+    def test_CallsClose(self):
+        """
+        Tests that start calls the connection's close method to properly shut things down.
+
+        """
+        self.rpc.connection.close.assert_called_once_with()
+    #---
 
 
 class Test_send(object):
@@ -164,7 +198,6 @@ class Test_send(object):
         # Holy mocks Batman
         self.localproducer.logging = mock.MagicMock()
         self.localproducer.Producer._configureConnection = mock.MagicMock()
-        self.localproducer.Producer._connect = mock.MagicMock()
         self.localproducer.Producer._startReplyConsumer = mock.MagicMock()
         self.localproducer.Producer._replyWaitLoop = mock.MagicMock()
         self.localproducer.uuid.uuid4 = mock.MagicMock(return_value=self.uuid)
@@ -253,7 +286,6 @@ class Test__startReplyConsumer(object):
 
         self.localproducer.logging = mock.MagicMock()
         self.localproducer.Producer._configureConnection = mock.MagicMock()
-        self.localproducer.Producer._connect = mock.MagicMock()
 
         self.rpc = self.localproducer.Producer()
         self.rpc.channel = mock.MagicMock()
@@ -286,7 +318,6 @@ class Test__replyWaitLoop(object):
 
         self.localproducer.logging = mock.MagicMock()
         self.localproducer.Producer._configureConnection = mock.MagicMock()
-        self.localproducer.Producer._connect = mock.MagicMock()
 
         self.rpc = self.localproducer.Producer()
         self.rpc.connection = mock.MagicMock()
@@ -340,7 +371,6 @@ class Test__consumerCallback(object):
 
         self.localproducer.logging = mock.MagicMock()
         self.localproducer.Producer._configureConnection = mock.MagicMock()
-        self.localproducer.Producer._connect = mock.MagicMock()
         self.props = mock.MagicMock()
 
 
@@ -482,7 +512,6 @@ class Test__configureConnection(object):
 
 
         self.localproducer.logging = mock.MagicMock()
-        self.localproducer.Producer._connect = mock.MagicMock()
 
         # _configureConnection is called in the constructor
         self.rpc = self.localproducer.Producer('')
@@ -524,7 +553,6 @@ class Test__createCredentials(object):
         self.PlainCredentials = self.localproducer.pika.PlainCredentials
 
         self.localproducer.Producer._configureConnection = mock.MagicMock()
-        self.localproducer.Producer._connect = mock.MagicMock()
 
         self.callback = mock.MagicMock()
         # Calls _createCredentials if username and password are set

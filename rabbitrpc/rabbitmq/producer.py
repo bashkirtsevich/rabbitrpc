@@ -89,7 +89,8 @@ class Producer(object):
         Cleanly stops the producer.
 
         """
-        self.connection.close()
+        if self.connection:
+            self.connection.close()
     #---
 
     def send(self, body_data, expect_reply = True):
