@@ -66,7 +66,7 @@ class Producer(object):
         :type rabbit_config: dict
 
         """
-        self.log = logging.getLogger('rabbitrpclient')
+        self.log = logging.getLogger('rabbitmq.producer')
         if rabbit_config:
             self.config.update(rabbit_config)
 
