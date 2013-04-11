@@ -23,7 +23,6 @@
 #   Implements a RabbitMQ Producer
 #
 
-import cPickle
 import logging
 import pika
 from pika.exceptions import AMQPConnectionError
@@ -78,19 +77,21 @@ class Producer(object):
         self._connect()
     #---
 
-    def send(self, rpc_data, expect_reply = True):
+    def send(self, body_data, expect_reply = True):
         """
         Sends an RPC call to the provided queue.
 
         This method pickles the data provided to it before sending it to the queue.
 
-        :param expect_reply: Uses a blocking connection and waits for replies if `True`.  Simply sends and forgets if `False`.
+        :param body_data: The data to transmit
+        :type body_data: str
+        :param expect_reply: Uses a blocking connection and waits for replies if `True`.  Simply sends and forgets
+            if `False`.
         :type expect_reply: bool
 
         :return: Un-pickled RPC response data, if expect_reply is `True`.
         """
         publish_params = {}
-        pickled_rpc = cPickle.dumps(rpc_data)
 
         if expect_reply:
             self._startReplyConsumer()
@@ -100,7 +101,7 @@ class Producer(object):
             publish_params.update(params)
 
         self.channel.basic_publish(exchange=self.config['exchange'], routing_key=self.config['queue_name'],
-                                   body=str(pickled_rpc), **publish_params)
+                                   body=body_data, **publish_params)
 
         if expect_reply:
             self._replyWaitLoop()
@@ -142,8 +143,6 @@ class Producer(object):
         """
         Accepts the response to a an RPC call.
 
-        This method expects pickled data!
-
         :param ch: Channel
         :type ch: object
         :param method: Method from the consumer callback
@@ -153,7 +152,7 @@ class Producer(object):
 
         """
         if props.correlation_id == self.correlation_id:
-            self._rpc_reply = cPickle.loads(body)
+            self._rpc_reply = body
     #---
 
     def _connect(self):

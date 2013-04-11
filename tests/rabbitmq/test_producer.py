@@ -134,12 +134,6 @@ class Test_Send(object):
         self.config = self.localproducer.Producer.config
 
         self.rpc_data = {'bob':'barker'}
-        self.pickled_rpc_data = "(dp1" \
-                                    "S'bob'" \
-                                    "p2" \
-                                    "S'barker'" \
-                                    "p3" \
-                                    "s."
         self.uuid = 'thisisnotauuid'
         self.basic_props = {'prop':'value'}
 
@@ -149,7 +143,6 @@ class Test_Send(object):
         self.localproducer.Producer._connect = mock.MagicMock()
         self.localproducer.Producer._startReplyConsumer = mock.MagicMock()
         self.localproducer.Producer._replyWaitLoop = mock.MagicMock()
-        self.localproducer.cPickle.dumps = mock.MagicMock(return_value=self.pickled_rpc_data)
         self.localproducer.uuid.uuid4 = mock.MagicMock(return_value=self.uuid)
         self.localproducer.pika.BasicProperties = mock.MagicMock(return_value=self.basic_props)
 
@@ -158,13 +151,6 @@ class Test_Send(object):
         self.rpc_reply = self.rpc.send(self.rpc_data)
     #---
 
-    def test_PicklesRPCData(self):
-        """
-        Tests that send pickles the incoming RPC data.
-
-        """
-        self.localproducer.cPickle.dumps.assert_called_once_with(self.rpc_data)
-    #---
 
     def test_StartsReplyConsumerIfExpectReplyIsTrue(self):
         """
@@ -201,7 +187,7 @@ class Test_Send(object):
         """
 #        print self.rpc.channel.basic_publish.mock_calls
         self.rpc.channel.basic_publish.assert_called_once_with(exchange=self.rpc.config['exchange'], routing_key=self.rpc.config['queue_name'],
-                                                               body=self.pickled_rpc_data, properties=self.basic_props)
+                                                               body=self.rpc_data, properties=self.basic_props)
 
     #---
 
@@ -326,12 +312,11 @@ class Test__consumerCallback(object):
         self.localproducer = reload(producer)
         self.body = 'iamsopickled'
         self.correlation_id = 'something'
-        self.rpc_data = ('i','am','so','pickled')
+        self.rpc_data = 'iamsopickled'
 
         self.localproducer.logging = mock.MagicMock()
         self.localproducer.Producer._configureConnection = mock.MagicMock()
         self.localproducer.Producer._connect = mock.MagicMock()
-        self.localproducer.cPickle.loads = mock.MagicMock(return_value=self.rpc_data)
         self.props = mock.MagicMock()
 
 
@@ -361,32 +346,6 @@ class Test__consumerCallback(object):
 
         self.rpc._consumerCallback('', '', self.props, self.body)
         assert self.rpc._rpc_reply != self.rpc_data
-    #---
-
-    def _UnPicklesRPCResults(self):
-        """
-        Tests that _consumerCallback un-pickles the RPC results.
-
-        """
-        self.rpc._consumerCallback('', '', self.props, self.body)
-        self.localproducer.cPickle.loads.assert_called_once_with(self.body)
-    #---
-    def test_UnPicklesRPCResults(self): self._reload_cPickle(self._UnPicklesRPCResults)
-
-    def _reload_cPickle(self, test_method):
-        """
-        Wraps a test method that uses cPickle mocking so it doesn't screw up other tests.
-        """
-        cpickle = reload(producer.cPickle)
-        self.localproducer.cPickle = cpickle
-        self.localproducer.cPickle.loads = mock.MagicMock(return_value=self.rpc_data)
-
-        try:
-            test_method()
-        except Exception:
-            raise
-        finally:
-            self.localproducer.cPickle = reload(producer.cPickle)
     #---
 #---
 
