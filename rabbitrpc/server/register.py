@@ -67,7 +67,9 @@ def RPCFunction(function):
         docs = inspect.cleandoc(function.__doc__)
 
     function_definition = {
-        function.__name__: dict(args=args, doc=docs, module=function.__module__)
+        function.__module__: {
+            function.__name__: dict(args=args, doc=docs)
+        }
     }
 
     rpcserver.RPCServer.register_definition(function_definition)

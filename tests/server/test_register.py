@@ -47,6 +47,7 @@ class Test_RPCFunction(object):
         #---
 
         self.server_stub = RPCServerStub
+        self.module = self.__module__
 
         self.local_register = reload(register)
         self.local_register.rpcserver.RPCServer = RPCServerStub
@@ -65,7 +66,9 @@ class Test_RPCFunction(object):
         #---
         self.local_register.RPCFunction(function_with_doctag)
 
-        assert self.server_stub.definitions['function_with_doctag']['doc'] == inspect.cleandoc(function_with_doctag.__doc__)
+        func = self.server_stub.definitions[self.module]['function_with_doctag']
+
+        assert func['doc'] == inspect.cleandoc(function_with_doctag.__doc__)
     #---
 
     def test_VarArgsAreIncluded(self):
@@ -78,7 +81,7 @@ class Test_RPCFunction(object):
         #---
         self.local_register.RPCFunction(function_with_varargs)
 
-        defined_args = self.server_stub.definitions['function_with_varargs']['args']['defined'].var
+        defined_args = self.server_stub.definitions[self.module]['function_with_varargs']['args']['defined'].var
         assert defined_args == ['arg1', 'arg2']
     #---
 
@@ -92,7 +95,7 @@ class Test_RPCFunction(object):
         #---
         self.local_register.RPCFunction(function_with_kwargs)
 
-        defined_args = self.server_stub.definitions['function_with_kwargs']['args']['defined'].kw
+        defined_args = self.server_stub.definitions[self.module]['function_with_kwargs']['args']['defined'].kw
         assert defined_args == {'argument1': 'test1', 'argument2': 'test2'}
     #---
 
@@ -106,8 +109,8 @@ class Test_RPCFunction(object):
         #---
         self.local_register.RPCFunction(function_with_var_and_kwargs)
 
-        defined_var_args = self.server_stub.definitions['function_with_var_and_kwargs']['args']['defined'].var
-        defined_kw_args = self.server_stub.definitions['function_with_var_and_kwargs']['args']['defined'].kw
+        defined_var_args = self.server_stub.definitions[self.module]['function_with_var_and_kwargs']['args']['defined'].var
+        defined_kw_args = self.server_stub.definitions[self.module]['function_with_var_and_kwargs']['args']['defined'].kw
 
         assert defined_var_args == ['arg1', 'arg2']
         assert defined_kw_args == {'argument1': 'test1', 'argument2': 'test2'}
@@ -123,7 +126,7 @@ class Test_RPCFunction(object):
         #---
         self.local_register.RPCFunction(function_without_args)
 
-        defined_args = self.server_stub.definitions['function_without_args']['args']['defined']
+        defined_args = self.server_stub.definitions[self.module]['function_without_args']['args']['defined']
         assert defined_args is None
     #---
 
@@ -137,7 +140,7 @@ class Test_RPCFunction(object):
         #---
         self.local_register.RPCFunction(function_with_kw)
 
-        kwargs_var_name = self.server_stub.definitions['function_with_kw']['args']['kwargs_var']
+        kwargs_var_name = self.server_stub.definitions[self.module]['function_with_kw']['args']['kwargs_var']
         assert kwargs_var_name == 'kw'
     #---
 
@@ -151,7 +154,7 @@ class Test_RPCFunction(object):
         #---
         self.local_register.RPCFunction(function_with_var)
 
-        varargs_var_name = self.server_stub.definitions['function_with_var']['args']['varargs_var']
+        varargs_var_name = self.server_stub.definitions[self.module]['function_with_var']['args']['varargs_var']
         assert varargs_var_name == 'var'
     #---
 
@@ -165,10 +168,10 @@ class Test_RPCFunction(object):
         #---
         self.local_register.RPCFunction(function_with_var_and_kw)
 
-        kwargs_var_name = self.server_stub.definitions['function_with_var_and_kw']['args']['kwargs_var']
+        kwargs_var_name = self.server_stub.definitions[self.module]['function_with_var_and_kw']['args']['kwargs_var']
         assert kwargs_var_name == 'kwargs'
 
-        varargs_var_name = self.server_stub.definitions['function_with_var_and_kw']['args']['varargs_var']
+        varargs_var_name = self.server_stub.definitions[self.module]['function_with_var_and_kw']['args']['varargs_var']
         assert varargs_var_name == 'varargs'
     #---
 
@@ -182,7 +185,7 @@ class Test_RPCFunction(object):
         #---
         self.local_register.RPCFunction(function_local_module)
 
-        assert self.server_stub.definitions['function_local_module']['module'] == self.__module__
+        assert self.__module__ in self.server_stub.definitions
     #---
 
     def test_FunctionNameIsIncluded(self):
@@ -195,6 +198,6 @@ class Test_RPCFunction(object):
         #---
         self.local_register.RPCFunction(function_local_module2)
 
-        assert 'function_local_module2' in self.server_stub.definitions
+        assert 'function_local_module2' in self.server_stub.definitions[self.module]
     #---
 #---
