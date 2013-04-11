@@ -74,7 +74,22 @@ class Producer(object):
             self._createCredentials()
 
         self._configureConnection()
+    #---
+
+    def start(self):
+        """
+        Connects to RabbitMQ and starts the producer.
+
+        """
         self._connect()
+    #---
+
+    def stop(self):
+        """
+        Cleanly stops the producer.
+
+        """
+        self.connection.close()
     #---
 
     def send(self, body_data, expect_reply = True):

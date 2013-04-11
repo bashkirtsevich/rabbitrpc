@@ -46,7 +46,6 @@ class Test__init__(object):
 
         self.localproducer.logging = mock.MagicMock()
         self.localproducer.Producer._configureConnection = mock.MagicMock()
-        self.localproducer.Producer._connect = mock.MagicMock()
 
         self.rpc = self.localproducer.Producer()
     #---
@@ -108,17 +107,42 @@ class Test__init__(object):
         """
         self.rpc._configureConnection.assert_called_once_with()
     #---
+#---
+
+class Test_start(object):
+    """
+    Tests Producer's start method.
+
+    """
+
+    def setup_method(self, method):
+        """
+        Test Setup
+
+        :param method:
+
+        """
+        self.localproducer = reload(producer)
+        self.config = self.localproducer.Producer.config
+
+        self.localproducer.logging = mock.MagicMock()
+        self.localproducer.Producer._configureConnection = mock.MagicMock()
+        self.localproducer.Producer._connect = mock.MagicMock()
+
+        self.rpc = self.localproducer.Producer()
+        self.rpc.start()
+    #---
 
     def test_CallsConnect(self):
         """
-        Tests that __init__ calls the connection method.
+        Tests that start calls the connection method.
 
         """
         self.rpc._connect.assert_called_once_with()
     #---
-#---
 
-class Test_Send(object):
+
+class Test_send(object):
     """
     Tests Producer's send method.
 
@@ -376,8 +400,8 @@ class Test__connect(object):
         self.localproducer.logging = mock.MagicMock()
         self.localproducer.Producer.connection_params = self.connection_params
 
-        # _connect is called by the constructor
         self.rpc = self.localproducer.Producer()
+        self.rpc._connect()
     #---
 
     def test_UsesBlockingConnection(self):
@@ -409,7 +433,7 @@ class Test__connect(object):
 
     def test_DeclaresQueueExclusive(self):
         """
-        Tests that _connect declares a durable queue.
+        Tests that _connect declares an exclusive queue.
 
         """
         self.channel.queue_declare.assert_called_once_with(exclusive=True)
