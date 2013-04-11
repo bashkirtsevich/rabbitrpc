@@ -59,13 +59,18 @@ class RPCServer(object):
     @classmethod
     def register_definition(cls, definition):
         """
-        Registers an RPC function with the server class.
+        Registers an RPC call(s) with the server class.
 
-        :param definition: The method to register as an available RPC call
+        :param definition: The method(s) to register as an available RPC call
         :type definition: dict
 
         """
-        cls.definitions.update(definition)
+        for module,call_def in definition.items():
+            if module in cls.definitions:
+                cls.definitions[module].update(call_def)
+            else:
+                cls.definitions.update({module: call_def})
+
         cls.definitions_hash = hash(cPickle.dumps(cls.definitions))
     #---
 
@@ -212,10 +217,12 @@ class RPCServer(object):
 
         # Normal RPC methods
         else:
-            if call_request['call_name'] not in self.definitions:
-                raise CallError('%s is not defined on module %s' % (call_request['call_name'], call_request['module']))
-            elif call_request['module'] not in sys.modules:
+            if (call_request['module'] not in self.definitions) or (call_request['module'] not in sys.modules):
                 raise ModuleError('%s is not a valid module on this server' % call_request['module'])
+
+            elif call_request['call_name'] not in self.definitions[call_request['module']]:
+                raise CallError('%s is not defined on module %s' % (call_request['call_name'], call_request['module']))
+
             elif not call_request['call_name'] in sys.modules[call_request['module']].__dict__:
                 raise CallError('%s is not a valid call on this server' %call_request['call_name'])
     #---

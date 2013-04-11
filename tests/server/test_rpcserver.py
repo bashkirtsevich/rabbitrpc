@@ -45,17 +45,19 @@ class Test_register_definition(object):
 
         """
         self.definition = {
-            'provide_definitions' : {
-            'args': None,
-            },
+            'some_module': {
+                'provide_definitions' : {
+                    'args': None,
+                },
+            }
         }
         self.hash = hash(cPickle.dumps(self.definition))
 
         self.local_rpcserver = reload(rpcserver)
-
+        self.local_rpcserver.RPCServer.definitions = self.definition
     #---
 
-    def test_AddsDefinitionToClassVariable(self):
+    def test_AddsFullDefinitionToBlankClassVariable(self):
         """
         Tests that register_definition adds the function definition to the appropriate class variable
 
@@ -63,6 +65,47 @@ class Test_register_definition(object):
         self.local_rpcserver.RPCServer.register_definition(self.definition)
 
         assert self.local_rpcserver.RPCServer.definitions == self.definition
+    #---
+
+    def test_DoesNotOverwriteModules(self):
+        """
+        Tests that register_definition will not overwrite a module in the definitions.  It will instead simply add the
+        call definition to that module.
+
+        """
+        new_def = {
+            'some_module': {
+                'pants' : {
+                    'args': None,
+                },
+            }
+        }
+        expected = copy.deepcopy(self.definition)
+        expected['some_module'].update(new_def['some_module'])
+
+        self.local_rpcserver.RPCServer.register_definition(new_def)
+
+        assert self.local_rpcserver.RPCServer.definitions == expected
+    #---
+
+    def test_AddsNewModuleIfDNE(self):
+        """
+        Tests that register_definition will add a new module entry if one does not exist already.
+
+        """
+        new_def = {
+            'new_module': {
+                'some_pants' : {
+                    'args': None,
+                },
+            }
+        }
+        expected = copy.deepcopy(new_def)
+        expected.update(self.definition)
+
+        self.local_rpcserver.RPCServer.register_definition(new_def)
+
+        assert self.local_rpcserver.RPCServer.definitions == expected
     #---
 
     def test_ReHashesDefinitions(self):
@@ -503,6 +546,14 @@ class Test__validate_call(object):
         self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
 
+        self.local_rpcserver.RPCServer.definitions = {
+            'sys': {
+                'Bob': {
+                    'args': None
+                }
+            }
+        }
+
         self.server = self.local_rpcserver.RPCServer('')
     #---
 
@@ -569,7 +620,7 @@ class Test__validate_call(object):
         call = {
             'internal': False,
             'call_name': 'Bob',
-            'module': 'werkit'
+            'module': 'sys'
         }
 
         with pytest.raises(self.local_rpcserver.CallError):
@@ -603,8 +654,10 @@ class Test__validate_call(object):
 
         """
         definition = {
-            'Bob': {
-            'args': None
+            'sys': {
+                'Bob': {
+                    'args': None
+                }
             }
         }
         call = {
