@@ -37,7 +37,6 @@ def RPCFunction(function):
     :rtype: func
 
     """
-    DefinedArgs = collections.namedtuple('DefinedArgs', ['var', 'kw'])
     kwargs = None
     varargs = None
     docs = None
@@ -59,9 +58,13 @@ def RPCFunction(function):
     if not varargs and not kwargs:
         defined_args = None
     else:
-        defined_args = DefinedArgs(var=varargs, kw=kwargs)
+        defined_args = dict(var=varargs, kw=kwargs)
 
-    args = {'defined': defined_args, 'kwargs_var': argspec.keywords, 'varargs_var': argspec.varargs}
+    # :(
+    if defined_args is None and argspec.keywords is None and argspec.varargs is None:
+        args = None
+    else:
+        args = {'defined': defined_args, 'kwargs_var': argspec.keywords, 'varargs_var': argspec.varargs}
 
     if function.__doc__:
         docs = inspect.cleandoc(function.__doc__)
