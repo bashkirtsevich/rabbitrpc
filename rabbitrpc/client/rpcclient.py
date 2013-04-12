@@ -30,6 +30,13 @@ from rabbitrpc.rabbitmq import producer
 import sys
 
 
+_PROXY_FUNCTION="""def %(call_name)s(%(args)s):
+    \"\"\"
+    %(doc)s
+    \"\"\"
+    proxy_class._proxy_handler(%(call_name)s%(proxy_args)s)"""
+
+
 class RPCClientError(Exception): pass
 class ConnectionError(RPCClientError): pass
 class ReplyTimeoutError(RPCClientError): pass
@@ -49,7 +56,7 @@ class RPCClient(object):
         Constructor
 
         """
-        self.log = logging.getLogger ('rpcclient')
+        self.log = logging.getLogger (__name__)
         self.rabbit_producer = producer.Producer(rabbit_config)
     #---
 
@@ -58,7 +65,7 @@ class RPCClient(object):
         Cleans up connections
 
         """
-        self.rabbit_producer.stop()
+        self.stop()
     #---
 
 
@@ -68,7 +75,37 @@ class RPCClient(object):
 
         """
         self.rabbit_producer.start()
+        self.refresh()
+    #---
+
+    def stop(self):
+        """
+        Cleans up after the client, including un-registering defined modules.
+
+        """
+        if self.rabbit_producer:
+            self.rabbit_producer.stop()
+
+        self._remove_rpc_modules()
+    #---
+
+    def refresh(self):
+        """
+        Fetches the latest set of definitions from the server and re-builds the call mocks.  USE THIS WITH CARE!  It
+        _will_ overwrite existing references.
+
+        """
         self._fetch_definitions()
+        self._build_rpc_modules()
+    #---
+
+    def _proxy_handler(self, method_name, *varargs, **kwargs):
+        """
+        This handles calls to the proxy functions and does the work to send those calls on to the RPC server.
+
+        :return:
+        """
+        print('Ello, proxy handler method here')
     #---
 
     def _fetch_definitions(self):
@@ -90,34 +127,96 @@ class RPCClient(object):
         self.definitions_hash = def_data['result']['hash']
     #---
 
+    def _build_rpc_modules(self):
+        """
+        Builds the set of dynamic modules defined in the RPC server definitions.
+
+        """
+        for module, definitions in self.definitions.items():
+            new_module = self._new_module(module)
+
+            # Build the module functions
+            for call_name, definition in definitions.items():
+                args = ''
+                proxy_args = ''
+
+                if definition['args'] is not None:
+                    varargs, kwargs, kwargs_no_defaults = self._convert_args_to_strings(definition['args']['defined'])
+                    if varargs:
+                        args += ', %s' % varargs
+                    if kwargs:
+                        args += ', %s' %kwargs
+
+                    if varargs:
+                        proxy_args += ', %s' % varargs
+                    if kwargs:
+                        proxy_args += ', %s' %kwargs_no_defaults
+
+                modified_def = {
+                    'call_name': call_name,
+                    'doc': definition['doc'],
+                    'args': args.lstrip(', '),
+                    'proxy_args': proxy_args,
+                }
+
+                new_function = _PROXY_FUNCTION % modified_def
+                exec new_function in new_module.__dict__
+
+            # Give the module a reference to this class or things just won't work
+            new_module.proxy_class = self
+            # Make functions 'real'
+            sys.modules[module] = new_module
+    #---
+
+    def _convert_args_to_strings(self, args):
+        varargs = ''
+        kwargs = ''
+        kwargs_names = ''
+
+        def convert_kwargs(key):
+            if type(args['kw'][key]) is str:
+                translated_str = '%s = "%s"' % (key, args['kw'][key])
+            else:
+                translated_str = '%s = %s' % (key, args['kw'][key])
+
+            return translated_str
+        #---
+
+        if args['var'] is not None:
+            varargs = ', '.join(args['var'])
+
+        if args['kw'] is not None:
+            kwargs = ', '.join(map(convert_kwargs, args['kw']))
+            kwargs_names = args['kw'].keys()
+
+        return varargs,kwargs,kwargs_names
+    #---
+
     def _new_module(self, module_name):
         """
-        Wraps the module registration and creation methods
+        Creates and registers a new module.
 
+        :param module_name: Name of the module to create/register
+        :type module_name: str
+
+        :rtype: module
         """
         module = imp.new_module(module_name)
         sys.modules[module_name] = module
 
+        return module
     #---
 
-
-
-    def _create_module(self, module_name):
+    def _remove_rpc_modules(self):
         """
-        Creates a new dynamic module based on the provided info
-
-        :return: module
+        Cleanup method.  Removes all the modules the rpc client registered.
 
         """
-        module = imp.new_module(module_name)
-    #---
+        if not self.definitions:
+            return
 
-    def _register_module(self, module_name, module):
-        """
-        Registers a new dynamic module with Python
-
-
-        """
-        sys.modules[module_name] = module
+        for module in self.definitions.keys():
+            if module in sys.modules:
+                del sys.modules[module]
     #---
 #---
