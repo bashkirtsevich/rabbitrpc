@@ -39,6 +39,7 @@ class Producer(object):
     """
     connection_params = None
     correlation_id = None
+    reply_queue = None
     log = None
     config = {
         'queue_name': 'rabbitrpc',
@@ -112,7 +113,7 @@ class Producer(object):
         if expect_reply:
             self._startReplyConsumer()
             self.correlation_id = str(uuid.uuid4())
-            params = {'properties': pika.BasicProperties(reply_to=self.config['reply_queue'],
+            params = {'properties': pika.BasicProperties(reply_to=self.reply_queue,
                                                          correlation_id=self.correlation_id)}
             publish_params.update(params)
 
@@ -131,7 +132,7 @@ class Producer(object):
         Starts the RPC reply consumer.
 
         """
-        self.channel.basic_consume(self._consumerCallback, queue=self.config['reply_queue'], no_ack=True)
+        self.channel.basic_consume(self._consumerCallback, queue=self.reply_queue, no_ack=True)
     #---
 
     def _replyWaitLoop(self):
@@ -139,7 +140,7 @@ class Producer(object):
         Loops until a response is received or the wait timeout elapses.
 
         """
-        self.connection.add_timeout(self._reply_timeout, self._timeoutElapsed)
+        self.connection.add_timeout(self.config['reply_timeout'], self._timeoutElapsed)
 
         while self._rpc_reply is None:
             self.connection.process_data_events()
@@ -152,7 +153,7 @@ class Producer(object):
 
         :raises: ReplyTimeoutError
         """
-        raise ReplyTimeoutError('Reply timeout of %i s elapsed with no response' % self._reply_timeout)
+        raise ReplyTimeoutError('Reply timeout of %is elapsed with no response' % self.config['reply_timeout'])
     #---
 
     def _consumerCallback(self, ch, method, props, body):

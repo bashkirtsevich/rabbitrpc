@@ -330,7 +330,7 @@ class Test__replyWaitLoop(object):
         Tests that _replyWaitLoop adds a timeout to stop the loop after a set amount of time.
 
         """
-        self.rpc.connection.add_timeout.assert_called_once_with(self.rpc._reply_timeout, self.rpc._timeoutElapsed)
+        self.rpc.connection.add_timeout.assert_called_once_with(self.rpc.config['reply_timeout'], self.rpc._timeoutElapsed)
     #---
 
     def test_ProcessesDataEvents(self):
