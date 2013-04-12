@@ -45,13 +45,15 @@ def RPCFunction(function):
     argspec = inspect.getargspec(function)
 
     if argspec.defaults:
-        num_defaults = len(argspec.defaults)
+        num_args = len(argspec.args)
+        kwargs_start = num_args - len(argspec.defaults)
+
         # Only keyword args
-        if num_defaults == len(argspec.args):
+        if kwargs_start == num_args:
             kwargs = dict(zip(argspec.args,argspec.defaults))
         else:
-            varargs = argspec.args[:num_defaults]
-            kwargs = dict(zip(argspec.args[num_defaults:],argspec.defaults))
+            varargs = argspec.args[:kwargs_start]
+            kwargs = dict(zip(argspec.args[kwargs_start:],argspec.defaults))
     elif argspec.args:
         varargs = argspec.args
 
