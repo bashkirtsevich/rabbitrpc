@@ -81,7 +81,7 @@ class RPCServer(object):
 
         :param config_file:
         """
-        self.log = logging.getLogger('rpcserver')
+        self.log = logging.getLogger(__name__)
 
         config_parser = iniparser.IniParser()
         config_parser.read(config_file)
@@ -139,7 +139,6 @@ class RPCServer(object):
         :rtype: int
 
         """
-
         return self.definitions_hash
     #---
 
@@ -159,13 +158,13 @@ class RPCServer(object):
 
         if call_request['internal'] and not call_module:
             dynamic_method =  self.__getattribute__(call_name)
-
         else:
             dynamic_method = sys.modules[call_module].__dict__[call_name]
 
+        self.log.info('Serving RPC request (%s.%s)' %(call_module, call_name))
+
         if not call_request['args']:
             return dynamic_method()
-
 
         args = {'varargs': [], 'kwargs': {}}
         # Remove keys with 'None' values from incoming args and update the defaults
@@ -251,6 +250,8 @@ class RPCServer(object):
             call_result['error'] = {}
             trace = traceback.format_exception(*exception_info)
             call_result['error']['traceback'] = ''.join(trace)
+            self.log.info('RPC request (%s.%s) raise an exception:\n%s'
+                          %(call_request['module'], call_request['call_name'], call_result['error']['traceback']))
 
         return cPickle.dumps(call_result)
     #---
