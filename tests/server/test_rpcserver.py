@@ -145,7 +145,7 @@ class Test___init__(object):
         Tests that __init__ starts a logger.
 
         """
-        self.local_rpcserver.logging.getLogger.assert_called_once_with('rpcserver')
+        assert self.local_rpcserver.logging.getLogger.called == True
     #---
 
     def test_ReadsConfigFile(self):
@@ -686,7 +686,7 @@ class Test__encode_result(object):
         self.local_rpcserver = reload(rpcserver)
 
         self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
-        self.local_rpcserver.logging.getLogger = mock.MagicMock()
+        self.local_rpcserver.logging = mock.MagicMock()
 
         self.server = self.local_rpcserver.RPCServer('')
     #---
@@ -730,20 +730,29 @@ class Test__encode_result(object):
         Tests that _encode_results includes the error which stopped the call processing.
 
         """
+        call = {
+            'internal': False,
+            'call_name': 'Bob',
+            'module': 'sys',
+            'args': None,
+        }
+
         try:
             raise Exception('word')
         except Exception as error:
             exception_info = sys.exc_info()
 
         expected_result = cPickle.dumps({
-            'call': '',
+            'call': call,
             'result': error,
             'error': {
                 'traceback': ''.join(traceback.format_exception(*exception_info))
             },
         })
 
-        encoded_result = self.server._encode_result(error, '', exception_info)
+        encoded_result = self.server._encode_result(error, call, exception_info)
+
+
 
         assert encoded_result == expected_result
     #---
