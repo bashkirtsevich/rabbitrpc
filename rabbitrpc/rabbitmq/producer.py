@@ -174,7 +174,8 @@ class Producer(object):
 
     def _connect(self):
         """
-        Connects to the RabbitMQ server.
+        Connects to the RabbitMQ server.  Also creates an exclusive reply queue to be used when a call needs to
+        pass data back to the client.
 
         """
         queue_params = {}
@@ -189,6 +190,7 @@ class Producer(object):
 
         self.channel = self.connection.channel()
 
+        # Creates a unique reply queue for just this connection (thus the exclusive)
         result = self.channel.queue_declare(exclusive=True, **queue_params)
         self.reply_queue = result.method.queue
     #---
