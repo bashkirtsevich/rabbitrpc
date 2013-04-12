@@ -314,6 +314,7 @@ class Test__replyWaitLoop(object):
         :param method:
 
         """
+        self.timeout_id = '2w4et12'
         self.localproducer = reload(producer)
 
         self.localproducer.logging = mock.MagicMock()
@@ -321,8 +322,8 @@ class Test__replyWaitLoop(object):
 
         self.rpc = self.localproducer.Producer()
         self.rpc.connection = mock.MagicMock()
+        self.rpc.connection.add_timeout.return_value = self.timeout_id
         self.rpc._rpc_reply = 'Yes' # Kills the loop, or the test will never finish
-        self.rpc._replyWaitLoop()
     #---
 
     def test_AddsReplyTimeout(self):
@@ -330,6 +331,7 @@ class Test__replyWaitLoop(object):
         Tests that _replyWaitLoop adds a timeout to stop the loop after a set amount of time.
 
         """
+        self.rpc._replyWaitLoop()
         self.rpc.connection.add_timeout.assert_called_once_with(self.rpc.config['reply_timeout'], self.rpc._timeoutElapsed)
     #---
 
@@ -349,6 +351,23 @@ class Test__replyWaitLoop(object):
         called = self.rpc.connection.process_data_events.called
 
         assert called == True
+    #---
+
+    def test_RemovesTimeoutOnSuccess(self):
+        """
+        Tests that _replyWaitLoop processes events for the consumer.
+
+        """
+        # This kills off the while loop so the test does not hang, I really don't like this.
+        def loop_killer():
+            self.rpc._rpc_reply = 'Yes'
+
+        self.rpc._rpc_reply = None
+        self.rpc.connection.process_data_events = mock.MagicMock(side_effect=loop_killer)
+
+        self.rpc._replyWaitLoop()
+
+        self.rpc.connection.remove_timeout.assert_called_once_with(self.timeout_id)
     #---
 #---
 

@@ -140,10 +140,12 @@ class Producer(object):
         Loops until a response is received or the wait timeout elapses.
 
         """
-        self.connection.add_timeout(self.config['reply_timeout'], self._timeoutElapsed)
+        timeout_id = self.connection.add_timeout(self.config['reply_timeout'], self._timeoutElapsed)
 
         while self._rpc_reply is None:
             self.connection.process_data_events()
+
+        self.connection.remove_timeout(timeout_id)
     #---
 
     def _timeoutElapsed(self):
