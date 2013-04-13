@@ -27,7 +27,8 @@ Please keep in mind, this package is still a work in progress.  Here's a current
 Real documentation is in the plans, my time is just limited at the moment.  All of the source is well documented with
 doctags.  Please check that out for the time being.
 
-Bugs and Feature Requests:
+**Bugs and Feature Requests:**
+
 Please leave them on the project's Github tracker: https://github.com/nwhalen/rabbitrpc/issues
 
 Example
