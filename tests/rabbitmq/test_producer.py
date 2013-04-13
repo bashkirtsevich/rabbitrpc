@@ -268,6 +268,16 @@ class Test_send(object):
 
         assert expected_reply == reply
     #---
+
+    def test_ClearsRPCReply(self):
+        """
+        """
+        expected_reply = 'No'
+        self.rpc._rpc_reply = expected_reply
+        reply = self.rpc.send(self.rpc_data)
+
+        assert self.rpc._rpc_reply is None
+    #----
 #---
 
 class Test__startReplyConsumer(object):

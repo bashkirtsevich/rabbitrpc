@@ -122,7 +122,10 @@ class Producer(object):
 
         if expect_reply:
             self._replyWaitLoop()
-            return self._rpc_reply
+
+            reply = self._rpc_reply
+            self._rpc_reply = None
+            return reply
 
         return
     #---
