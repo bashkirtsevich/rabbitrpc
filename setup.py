@@ -12,16 +12,8 @@ finally:
     f.close()
 
 
-f = open('requirements.txt')
-try:
-    requirements = f.read().splitlines()
-except:
-    requirements = []
-finally:
-    f.close()
-
 setup(name='rabbitrpc',
-      version='0.5.1',
+      version='0.6.0',
       platforms=('Any'),
       author='Nick Whalen',
       author_email='nickw@mindstorm-networks.net',
@@ -31,10 +23,10 @@ setup(name='rabbitrpc',
       long_description=readme_content,
       packages=['rabbitrpc'],
       requires=['pika (>=0.9.8)'],
-      provides=['rabbitrpcclient', 'rabbitrpcserver'],
+      provides=['rabbitrpc'],
       keywords='rabbitmq rpc amqp',
       license='Apache License 2.0',
-      classifiers=['Development Status :: 3 - Alpha',
+      classifiers=['Development Status :: 3 - Beta',
                    'Intended Audience :: Developers',
                    'Natural Language :: English',
                    'Operating System :: OS Independent',
