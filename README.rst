@@ -17,6 +17,7 @@ the server-side functions (within pickleable limits).  Should an exception occur
 exception will be thrown and its traceback will be shown.
 
 Please keep in mind, this package is still a work in progress.  Here's a current list of what is planned before 1.0.0:
+
 * Add support for remote class registrations and stateful class management from within the server, on a per-client basis.
 * Authentication
 * Authorization (along with the ability to create groups/roles specifying what functions/methods/classes may or may not
