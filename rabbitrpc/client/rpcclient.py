@@ -34,7 +34,7 @@ _PROXY_FUNCTION="""def %(call_name)s(%(args)s):
     \"\"\"
     %(doc)s
     \"\"\"
-    proxy_class._proxy_handler('%(call_name)s'%(proxy_args)s)"""
+    return proxy_class._proxy_handler('%(call_name)s','%(module_name)s'%(proxy_args)s)"""
 
 
 class RPCClientError(Exception): pass
@@ -99,13 +99,48 @@ class RPCClient(object):
         self._build_rpc_modules()
     #---
 
-    def _proxy_handler(self, method_name, *varargs, **kwargs):
+    def _proxy_handler(self, method_name, module, *varargs, **kwargs):
         """
         This handles calls to the proxy functions and does the work to send those calls on to the RPC server.
 
         :return:
         """
-        print('method_name: %s  *varargs: %s  **kwargs: %s' % (method_name, varargs, kwargs))
+        # Set up the arguments in the proper format
+        if varargs or kwargs:
+            args = {
+                'varargs': varargs if varargs else None,
+                'kwargs': kwargs if kwargs else None,
+            }
+        else:
+            args = None
+
+        call = {
+            'call_name': method_name,
+            'args': args,
+            'internal': False,
+            'module': module,
+        }
+
+        encoded_data = self.rabbit_producer.send(cPickle.dumps(call))
+        decoded_results = cPickle.loads(encoded_data)
+
+        results = self._result_handler(decoded_results)
+        return results
+    #---
+
+    def _result_handler(self, decoded_results):
+        """
+
+        :param decoded_results: Decoded call results
+        :type decoded_results: dict
+
+        :return: The actual decoded_results of the call
+        """
+        if decoded_results['error']:
+            print(decoded_results['error']['traceback'])
+            raise decoded_results['result']
+
+        return decoded_results['result']
     #---
 
     def _fetch_definitions(self):
@@ -113,15 +148,15 @@ class RPCClient(object):
         Fetches the call definitions from the server.
 
         """
-        call = cPickle.dumps({
+        call = {
             'call_name': 'provide_definitions',
             'args': None,
             'internal': True,
             'module': None,
-        })
+        }
 
-        encoded__data = self.rabbit_producer.send(call)
-        def_data = cPickle.loads(encoded__data)
+        encoded_data = self.rabbit_producer.send(cPickle.dumps(call))
+        def_data = cPickle.loads(encoded_data)
 
         self.definitions = def_data['result']['definitions']
         self.definitions_hash = def_data['result']['hash']
@@ -165,6 +200,7 @@ class RPCClient(object):
                 'doc': definition['doc'],
                 'args': args,
                 'proxy_args': proxy_args,
+                'module_name': module.__name__,
             }
 
             new_function = _PROXY_FUNCTION % function_vars
