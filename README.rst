@@ -20,7 +20,7 @@ Please keep in mind, this package is still a work in progress.  Here's a current
 * Add support for remote class registrations and stateful class management from within the server, on a per-client basis.
 * Authentication
 * Authorization (along with the ability to create groups/roles specifying what functions/methods/classes may or may not
-    be run by a particular account.
+be run by a particular account.
 * Dead-letter support in AMQP backend (for those rare times when something goes wrong and you need to recover).
 * 'Versioning' for RPC endpoints, which would allow servers to serve subsets of an API/set of endpoints
 
