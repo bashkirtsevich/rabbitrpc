@@ -103,7 +103,16 @@ class RPCClient(object):
         """
         This handles calls to the proxy functions and does the work to send those calls on to the RPC server.
 
-        :return:
+        :param method_name: The calling method's name
+        :type method_name: str
+        :param module: The calling method's module name
+        :type module: str
+        :param varargs: varargs from the calling method
+        :type varargs: tuple
+        :param kwargs: kwargs from the calling method
+        :type kwargs: dict
+
+        :return: Call results
         """
         # Set up the arguments in the proper format
         if varargs or kwargs:
@@ -130,11 +139,13 @@ class RPCClient(object):
 
     def _result_handler(self, decoded_results):
         """
+        Handles the results from a call.  Raises exceptions if it needs to.
 
         :param decoded_results: Decoded call results
         :type decoded_results: dict
 
         :return: The actual decoded_results of the call
+
         """
         if decoded_results['error']:
             print(decoded_results['error']['traceback'])
