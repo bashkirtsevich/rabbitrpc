@@ -34,7 +34,7 @@ _PROXY_FUNCTION="""def %(call_name)s(%(args)s):
     \"\"\"
     %(doc)s
     \"\"\"
-    proxy_class._proxy_handler(%(call_name)s%(proxy_args)s)"""
+    proxy_class._proxy_handler('%(call_name)s'%(proxy_args)s)"""
 
 
 class RPCClientError(Exception): pass
@@ -105,7 +105,7 @@ class RPCClient(object):
 
         :return:
         """
-        print('Ello, proxy handler method here')
+        print('method_name: %s  *varargs: %s  **kwargs: %s' % (method_name, varargs, kwargs))
     #---
 
     def _fetch_definitions(self):
@@ -135,32 +135,7 @@ class RPCClient(object):
         for module, definitions in self.definitions.items():
             new_module = self._new_module(module)
 
-            # Build the module functions
-            for call_name, definition in definitions.items():
-                args = ''
-                proxy_args = ''
-
-                if definition['args'] is not None:
-                    varargs, kwargs, kwargs_no_defaults = self._convert_args_to_strings(definition['args']['defined'])
-                    if varargs:
-                        args += ', %s' % varargs
-                    if kwargs:
-                        args += ', %s' %kwargs
-
-                    if varargs:
-                        proxy_args += ', %s' % varargs
-                    if kwargs:
-                        proxy_args += ', %s' %kwargs_no_defaults
-
-                modified_def = {
-                    'call_name': call_name,
-                    'doc': definition['doc'],
-                    'args': args.lstrip(', '),
-                    'proxy_args': proxy_args,
-                }
-
-                new_function = _PROXY_FUNCTION % modified_def
-                exec new_function in new_module.__dict__
+            self._build_module_functions(definitions, new_module)
 
             # Give the module a reference to this class or things just won't work
             new_module.proxy_class = self
@@ -168,28 +143,70 @@ class RPCClient(object):
             sys.modules[module] = new_module
     #---
 
-    def _convert_args_to_strings(self, args):
-        varargs = ''
+    def _build_module_functions(self, definitions, module):
+        """
+        Builds a modules methods and attaches them to it
+
+        :param definitions: Function definitions for the given module
+        :type definitions: dict
+        :param module: The module object to operate on
+        :type module: module
+
+        """
+        for call_name, definition in definitions.items():
+            args = ''
+            proxy_args = ''
+
+            if definition['args'] is not None:
+                args, proxy_args = self._convert_args_to_strings(definition['args']['defined'])
+
+            function_vars = {
+                'call_name': call_name,
+                'doc': definition['doc'],
+                'args': args,
+                'proxy_args': proxy_args,
+            }
+
+            new_function = _PROXY_FUNCTION % function_vars
+            exec new_function in module.__dict__
+    #---
+
+    def _convert_args_to_strings(self, func_args):
         kwargs = ''
-        kwargs_names = ''
+        varargs = ''
+        proxy_kwargs = ''
+        proxy_args = ''
+        args = ''
 
         def convert_kwargs(key):
-            if type(args['kw'][key]) is str:
-                translated_str = '%s = "%s"' % (key, args['kw'][key])
+            if type(func_args['kw'][key]) is str:
+                translated_str = '%s = "%s"' % (key, func_args['kw'][key])
             else:
-                translated_str = '%s = %s' % (key, args['kw'][key])
+                translated_str = '%s = %s' % (key, func_args['kw'][key])
 
             return translated_str
         #---
 
-        if args['var'] is not None:
-            varargs = ', '.join(args['var'])
+        if func_args['var'] is not None:
+            varargs = ', '.join(func_args['var'])
 
-        if args['kw'] is not None:
-            kwargs = ', '.join(map(convert_kwargs, args['kw']))
-            kwargs_names = args['kw'].keys()
+        if func_args['kw'] is not None:
+            kwargs = ', '.join(map(convert_kwargs, func_args['kw']))
+            proxy_kwargs = ', '.join(map(lambda key: '%s = %s' % (key, key), func_args['kw'].keys()))
 
-        return varargs,kwargs,kwargs_names
+        # Build the 'def' arg list
+        if varargs:
+            args += ', %s' % varargs
+        if kwargs:
+            args += ', %s' %kwargs
+
+        # Build the 'proxy' call arg list
+        if varargs:
+            proxy_args += ', %s' % varargs
+        if proxy_kwargs:
+            proxy_args += ', %s' % proxy_kwargs
+
+        return args.lstrip(', '), proxy_args
     #---
 
     def _new_module(self, module_name):
