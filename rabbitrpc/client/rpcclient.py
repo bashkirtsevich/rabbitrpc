@@ -133,7 +133,7 @@ class RPCClient(object):
 
         """
         for module, definitions in self.definitions.items():
-            new_module = self._new_module(module)
+            new_module = imp.new_module(module)
 
             self._build_module_functions(definitions, new_module)
 
@@ -172,6 +172,16 @@ class RPCClient(object):
     #---
 
     def _convert_args_to_strings(self, func_args):
+        """
+        Converts the call definition's args to strings that can be used in the module function's definition and
+        its calls to the proxy method.
+
+        :param func_args: The arguments for a call definition
+        :type func_args: dict
+
+        :return: tuple Text arguments for the module function definition[0] and the proxy method call[1].
+
+        """
         kwargs = ''
         varargs = ''
         proxy_kwargs = ''
@@ -198,7 +208,7 @@ class RPCClient(object):
         if varargs:
             args += ', %s' % varargs
         if kwargs:
-            args += ', %s' %kwargs
+            args += ', %s' % kwargs
 
         # Build the 'proxy' call arg list
         if varargs:
@@ -207,21 +217,6 @@ class RPCClient(object):
             proxy_args += ', %s' % proxy_kwargs
 
         return args.lstrip(', '), proxy_args
-    #---
-
-    def _new_module(self, module_name):
-        """
-        Creates and registers a new module.
-
-        :param module_name: Name of the module to create/register
-        :type module_name: str
-
-        :rtype: module
-        """
-        module = imp.new_module(module_name)
-        sys.modules[module_name] = module
-
-        return module
     #---
 
     def _remove_rpc_modules(self):
