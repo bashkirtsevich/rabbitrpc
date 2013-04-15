@@ -50,12 +50,24 @@ class RPCClient(object):
     rabbit_producer = None
     definitions = None
     definitions_hash = None
+    last_traceback = None
+    print_tracebacks = False
+    log_tracebacks = True
 
-    def __init__(self, rabbit_config):
+    def __init__(self, rabbit_config, print_tracebacks = False, log_tracebacks = True):
         """
         Constructor
 
+        :param rabbit_config: The configuration for the RabbitMQ server.  For details see this example:
+            https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Defintions#rabbitmq-configuration
+        :type rabbit_config: dict
+        :param print_tracebacks: Controls printing of rpc call tracebacks to stdout.  Defaults to ``False``.
+        :type print_tracebacks: bool
+        :param log_tracebacks: Controls printing of rpc call tracebacks to the error log.  Defaults to ``True``.
+        :type log_tracebacks: bool
         """
+        self.print_tracebacks = print_tracebacks
+        self.log_tracebacks = log_tracebacks
         self.log = logging.getLogger (__name__)
         self.rabbit_producer = producer.Producer(rabbit_config)
     #---
@@ -148,7 +160,21 @@ class RPCClient(object):
 
         """
         if decoded_results['error']:
-            print(decoded_results['error']['traceback'])
+            exception_info = ''
+            self.last_traceback = decoded_results['error']['traceback']
+
+            if self.print_tracebacks:
+                print(self.last_traceback)
+
+            if self.log_tracebacks:
+                exception_info += self.last_traceback
+
+            exception_info += '%s: %s' % (decoded_results['result'].__class__.__name__, decoded_results['result'].__str__)
+            module = decoded_results['call']['module']
+            call = decoded_results['call']['call_name']
+            self.log.error("Exception raised while executing call '%s.%s'.  Information follows: %s" %
+                           (module, call, exception_info))
+
             raise decoded_results['result']
 
         return decoded_results['result']
