@@ -38,8 +38,6 @@ _PROXY_FUNCTION="""def %(call_name)s(%(args)s):
 
 
 class RPCClientError(Exception): pass
-class ConnectionError(RPCClientError): pass
-class ReplyTimeoutError(RPCClientError): pass
 
 
 class RPCClient(object):

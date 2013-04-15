@@ -23,9 +23,7 @@
 #   Tests rabbitrpcclient
 #
 
-import copy
 import imp
-import pytest
 import mock
 from rabbitrpc.client import rpcclient
 import sys
