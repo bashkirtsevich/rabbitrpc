@@ -68,7 +68,9 @@ class RPCClient(object):
         """
         self.print_tracebacks = print_tracebacks
         self.log_tracebacks = log_tracebacks
+
         self.log = logging.getLogger (__name__)
+
         self.rabbit_producer = producer.Producer(rabbit_config)
     #---
 
