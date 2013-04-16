@@ -149,19 +149,19 @@ class RPCClient(object):
         return results
     #---
 
-    def _result_handler(self, decoded_results):
+    def _result_handler(self, decoded_result):
         """
         Handles the results from a call.  Raises exceptions if it needs to.
 
-        :param decoded_results: Decoded call results
-        :type decoded_results: dict
+        :param decoded_result: Decoded call results
+        :type decoded_result: dict
 
-        :return: The actual decoded_results of the call
+        :return: The actual decoded_result of the call
 
         """
-        if decoded_results['error']:
+        if decoded_result['error']:
             exception_info = ''
-            self.last_traceback = decoded_results['error']['traceback']
+            self.last_traceback = decoded_result['error']['traceback']
 
             if self.print_tracebacks:
                 print(self.last_traceback)
@@ -169,15 +169,15 @@ class RPCClient(object):
             if self.log_tracebacks:
                 exception_info += self.last_traceback
 
-            exception_info += '%s: %s' % (decoded_results['result'].__class__.__name__, decoded_results['result'].__str__)
-            module = decoded_results['call']['module']
-            call = decoded_results['call']['call_name']
+            exception_info += '%s: %s' % (decoded_result['result'].__class__.__name__, decoded_result['result'].__str__)
+            module = decoded_result['call']['module']
+            call = decoded_result['call']['call_name']
             self.log.error("Exception raised while executing call '%s.%s'.  Information follows: %s" %
                            (module, call, exception_info))
 
-            raise decoded_results['result']
+            raise decoded_result['result']
 
-        return decoded_results['result']
+        return decoded_result['result']
     #---
 
     def _fetch_definitions(self):
