@@ -2,7 +2,7 @@
 #
 # $Id: $
 #
-# NAME:         rpcserver.py
+# NAME:         consumer.py
 #
 # AUTHOR:       Nick Whalen <nickw@mindstorm-networks.net>
 # COPYRIGHT:    2013 by Nick Whalen
@@ -20,44 +20,48 @@
 #   limitations under the License.
 #
 # DESCRIPTION:
-#   RabbitMQ-based RPC server.
+#   Implements a AMQP consumer for RabbitMQ.
 #
 
-import cPickle
+
 import logging
 import pika
 from pika.exceptions import AMQPConnectionError
+import traceback
 
 
-class RPCServerError(Exception): pass
-class ConnectionError(RPCServerError): pass
-class CredentialsError(RPCServerError): pass
+class ConsumerError(Exception): pass
+class ConnectionError(ConsumerError): pass
+class CredentialsError(ConsumerError): pass
+class InvalidMessageError(ConsumerError): pass
 
 
-class RPCServer(object):
+class Consumer(object):
     """
-    Implements the server side of RPC over RabbitMQ.
+    Implements a consumer for RabbitMQ (with callbacks)
 
     """
-    queue = None
-    exchange = ''
-    rabbit = None
-    connection = None
     channel = None
-    rpc_callback = None
-    log = None
+    connection = None
     connection_settings = {
         'host': 'localhost',
         'port': 5672,
         'virtual_host': '/',
     }
+    exchange = ''
+    log = None
+    queue = None
+    dead_letter_queue = None
+    rabbit = None
+    callback = None
 
-    def __init__(self, rpc_callback, queue_name = 'rabbitrpc', exchange='', connection_settings = None):
+
+    def __init__(self, callback, queue_name = 'rabbitrpc', exchange='', connection_settings = None):
         """
         Constructor
 
-        :param rpc_callback: The method to call when the server receives and incoming RPC request.
-        :type rpc_callback: function
+        :param callback: The method to call when the server receives and incoming RPC request.
+        :type callback: function
         :param queue_name: Queue to connect to on the RabbitMQ server
         :type queue_name: str
         :param connection_settings: RabbitMQ connection configuration parameters.  These are the same parameters that
@@ -67,9 +71,10 @@ class RPCServer(object):
         :type connection_settings: dict
 
         """
-        self.log = logging.getLogger('rabbitrpc.rpcserver')
-        self.rpc_callback = rpc_callback
+        self.log = logging.getLogger('rabbitmq.consumer')
+        self.callback = callback
         self.queue = queue_name
+        self.dead_letter_queue = '%s-dead-messages' % queue_name
         self.exchange = exchange
 
         if connection_settings:
@@ -110,8 +115,6 @@ class RPCServer(object):
         Accepts incoming message, routes them to the RPC callback, then replies to the message with whatever the RPC
         callback returned.
 
-        This method expects pickled data and returns pickled data!
-
         :param ch: Channel
         :type ch: object
         :param method: Method from the consumer callback
@@ -120,22 +123,29 @@ class RPCServer(object):
         :type props: object
         """
         try:
-            decoded_body = cPickle.loads(body)
-            rpc_response = self.rpc_callback(decoded_body)
+            callback_response = self.callback(body)
+        except InvalidMessageError as error:
+            self.log.error('This consumer encountered an improperly formed message: %s' % body)
+            self.channel.basic_reject(delivery_tag=method.delivery_tag, requeue=False)
+            return
         except Exception as error:
-            self.log.error('ERROR: Unexpected exception raised while processing RPC request: %s' % error)
-            # This tells the server we didn't process the message and to hold it for another consumer
-            self.channel.basic_reject(delivery_tag=method.delivery_tag)
+            if method.redelivered:
+                self.log.error('This message is causing persistent problems with the consumer, dropping it: \n%s\n\n'
+                               '%s' % (body, traceback.format_exc()))
+                self.channel.basic_reject(delivery_tag=method.delivery_tag, requeue=False)
+            else:
+                self.log.error('Unexpected exception raised while calling the consumer callback:\n\n%s\n' %
+                               traceback.format_exc())
+                self.log.debug('Message Data: %s\n' % body)
+                self.channel.basic_reject(delivery_tag=method.delivery_tag)
             return
 
         # If a response was requested, send it
         if hasattr(props, 'reply_to'):
-            pickled_response = cPickle.dumps(rpc_response)
-
             pub_props = pika.BasicProperties(delivery_mode=2, correlation_id=props.correlation_id)
 
             self.channel.basic_publish(exchange=self.exchange, routing_key=props.reply_to, properties=pub_props,
-                                       body=pickled_response)
+                                       body=callback_response)
 
         # Tell Rabbit we're done processing the message
         self.channel.basic_ack(delivery_tag=method.delivery_tag)

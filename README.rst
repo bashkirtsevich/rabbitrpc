@@ -3,82 +3,73 @@ RabbitRPC
 =========
 :Author: Nick Whalen <nickw@mindstorm-networks.net>
 
-RabbitRPC is an RPC over AMQP framework.  It allows the user to worry less about how he's doing remote method calls and
-more about her/his actual code.  It was written to scratch an itch that developed during the development of a much
-larger software project which needed a highly scalable internal API.
+RabbitRPC is an RPC over AMQP framework for Python.  It allows the user to worry less about how he's doing remote method
+calls and more about her/his actual code.  It was written to scratch an itch that developed during the development of a
+much larger software project which needed a highly scalable internal API.
 
-The framework is currently a work in progress.  The basic client and server have been written/tested, but lack anything
-that make the framework 'feel' more like the method calls we're used to.  The next goal is to provide an additional
-layer on top of the existing client/server that will actually provide a dynamic interface which would allow you to
-do something like this on the client side::
+As of 0.6.0, RabbitRPC is capable of completely mocking remote functions and their modules.  This means that using the
+framework is as simple as instantiating the RPCClient class and calling 'start()' (after having written and registered
+some server-side components, of course).  See below for an example of how this works.
 
-    import rpcclient
+RabbitRPC tries to keep things feeling as native as possible.  As mentioned above, imports and function calls on modules
+work exactly like you'd use them for local code.  The RPC client will also return the exact data that was produced from
+the server-side functions (within pickleable limits).  Should an exception occur in the remote code, that exact
+exception will be thrown and its traceback will be shown.
 
-    connection_settings = {
-        'host': 'localhost',
-        'port': 5672,
-        'virtual_host': '/',
-        'username': 'bob',
-        'password': 'secret',
-    }
+Please keep in mind, this package is still a work in progress.  Here's a current list of what is planned before 1.0.0:
 
-    foo_class = rpcclient.RPCClient('remote_api_module_name', connection_settings=connection_settings)
-    return_value = foo_class.remote_api_method()
+* Add support for remote class registrations and stateful class management from within the server, on a per-client basis.
+* Authentication
+* Authorization (along with the ability to create groups/roles specifying what functions/methods/classes may or may not be run by a particular account.
+* Dead-letter support in AMQP backend (for those rare times when something goes wrong and you need to recover).
+* 'Versioning' for RPC endpoints, which would allow servers to serve subsets of an API/set of endpoints
 
-This will happen via server-side method registration.  The RPC server will keep track of all public methods and, at
-the request of the RPC client, provide a list of these methods and their parameters.  The RPC client will them use
-this list to dynamically build a stubbed out class.  The stubs will call a translation method which will translate and
-pickle the method call and send it to the RPC request queue.  A RPC worker can then take the API request package,
-process it, and return the results via the RPC server library.
+Real documentation is in the plans, my time is just limited at the moment.  All of the source is well documented with
+doctags.  Please check that out for the time being.
 
-Future plans also include the ability for the RPC workers to be versioned.  This means you can spin up separate worker
-hives for varying implementations of your API.
+**Bugs and Feature Requests:**
 
+Please leave them on the project's Github tracker: https://github.com/nwhalen/rabbitrpc/issues
 
 Example
 =======
+For actual, working code examples, see the 'examples' directory in the source tree.  You'll need a RabbitMQ server set
+up before you run them.  But you know that.
+
+**RPC Endpoints**::
+
+    from rabbitrpc.server import register
+
+    @register.RPCFunction
+    def the_price_is_wrong():
+        print '-- Bob Barker'
+
 **RPC Server**::
 
-    from rabbitrpc import rpcserver
+    import <your endpoint modules here>
+    from config import RABBITCONF
 
-    connection_settings = {
-        'host': 'localhost',
-        'port': 5672,
-        'virtual_host': '/',
-        'username': 'bob',
-        'password': 'secret',
-    }
-
-    def rpc_callback(method_info):
-        # Based on the data in method_info, select which method to call
-        # Call it
-        # Return the results
-
-    self.rpc_server = rpcserver.RPCServer(rpc_callback, 'RPCRequestQueue', connection_settings=connection_settings)
+    server = rpcserver.RPCServer(RABBITCONF)
 
     try:
-        self.rpc_server.run()
-    finally:
-        self.rpc_server.stop()
+        server.run()
+    except KeyboardInterrupt:
+        server.stop()
 
 **RPC Client**::
 
-    from rabbitrpc import rpcclient
+    from config import RABBITCONF
 
-    connection_settings = {
-        'host': 'localhost',
-        'port': 5672,
-        'virtual_host': '/',
-        'username': 'bob',
-        'password': 'secret',
-    }
+    # Fire up the client
+    client = rpcclient.RPCClient(RABBITCONF)
+    client.start()
 
-    rpc_client = rpcclient.RPCClient('RPCRequestQueue', reply_timeout=3000, connection_settings=connection_settings)
+    # This module is dynamically created by the client, along with it's function 'all_the_things'.  Calling
+    # 'all_the_things' will cause the client to transparently proxy the call out to the RPC server, via RabbitMQ.
+    import rpcendpoints
+    result = rpcendpoints.the_price_is_wrong()
 
-    request = # API call definition, any pickleable structure
-    reply = rpc_client.send(request)
-
-    print 'API REPLY: %s' % reply
+    print 'result: %s' % result
 
 
 Dependencies

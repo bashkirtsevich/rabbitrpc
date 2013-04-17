@@ -2,7 +2,7 @@
 #
 # $Id: $
 #
-# NAME:         rpcclient.py
+# NAME:         producer.py
 #
 # AUTHOR:       Nick Whalen <nickw@mindstorm-networks.net>
 # COPYRIGHT:    2013 by Nick Whalen
@@ -20,108 +20,112 @@
 #   limitations under the License.
 #
 # DESCRIPTION:
-#   RabbitMQ-based RPC client
+#   Implements a RabbitMQ Producer
 #
 
-import cPickle
 import logging
 import pika
 from pika.exceptions import AMQPConnectionError
 import uuid
 
+class ProducerError(Exception): pass
+class ConnectionError(ProducerError): pass
+class ReplyTimeoutError(ProducerError): pass
 
-class RPCClientError(Exception): pass
-class ConnectionError(RPCClientError): pass
-class ReplyTimeoutError(RPCClientError): pass
-
-
-class RPCClient(object):
+class Producer(object):
     """
     Implements the client side of RPC over RabbitMQ.
 
     """
-    queue = None
-    exchange = None
-    reply_queue = None
+    connection_params = None
     correlation_id = None
+    reply_queue = None
     log = None
-    connection_settings = {
-        'host': 'localhost',
-        'port': 5672,
-        'virtual_host': '/',
+    config = {
+        'queue_name': 'rabbitrpc',
+        'reply_queue': None,
+        'exchange': '',
+        'reply_timeout': 5, # Floats are ok
+
+        'connection_settings': {
+            'host': 'localhost',
+            'port': 5672,
+            'virtual_host': '/',
+            'username': 'guest',
+            'password': 'guest',
+        }
     }
     _rpc_reply = None
     _reply_timeout = None
 
-    def __init__(self, queue_name = 'rabbitrpc', reply_queue = None, exchange='', reply_timeout=5000,
-                 connection_settings = None):
+    def __init__(self, rabbit_config = None):
         """
         Constructor
 
-        :param queue_name: The name of the RabbitMQ queue to connect to.
-        :type queue_name: str
-        :param reply_queue: The queue that RPC server should send replies to.  Defaults to queue_name if `None`.
-        :type reply_queue: str
-        :param exchange: The exchange to use for this client.
-        :type exchange: str
-        :param reply_timeout: Time, in millis, to wait for a reply to the RPC query.
-        :type reply_timeout: int
-        :param connection_settings: RabbitMQ connection configuration parameters.  These are the same parameters that
-            are passed to the ConnectionParameters class in pika, minus 'credentials', which is created for you,
-            provided that you provide both 'username' and 'password' values in the dict.
-            See: http://pika.readthedocs.org/en/0.9.8/connecting.html#connectionparameters
-        :type connection_settings: dict
-
+        :param rabbit_config: The RabbitMQ config. See
+            https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Defintions for details.
+        :type rabbit_config: dict
 
         """
-        self.log = logging.getLogger('rabbitrpclient')
-        self.queue = queue_name
-        self._reply_timeout = reply_timeout / 1000
-        self.exchange = exchange
-        self.reply_queue = reply_queue
+        self.log = logging.getLogger('rabbitmq.producer')
+        if rabbit_config:
+            self.config.update(rabbit_config)
 
-        if connection_settings:
-            self.connection_settings = connection_settings
-
-        if 'username' and 'password' in self.connection_settings:
+        if 'username' and 'password' in self.config['connection_settings']:
             self._createCredentials()
 
-        # Remove the original auth values
-        if 'username' in self.connection_settings:
-            del self.connection_settings['username']
-        if 'password' in self.connection_settings:
-            del self.connection_settings['password']
-
         self._configureConnection()
+    #---
+
+    def start(self):
+        """
+        Connects to RabbitMQ and starts the producer.
+
+        """
         self._connect()
     #---
 
-    def send(self, rpc_data, expect_reply = True):
+    def stop(self):
+        """
+        Cleanly stops the producer.
+
+        """
+        if self.connection:
+            self.connection.close()
+    #---
+
+    def send(self, body_data, expect_reply = True):
         """
         Sends an RPC call to the provided queue.
 
         This method pickles the data provided to it before sending it to the queue.
 
-        :param expect_reply: Uses a blocking connection and waits for replies if `True`.  Simply sends and forgets if `False`.
+        :param body_data: The data to transmit
+        :type body_data: str
+        :param expect_reply: Uses a blocking connection and waits for replies if `True`.  Simply sends and forgets
+            if `False`.
         :type expect_reply: bool
 
         :return: Un-pickled RPC response data, if expect_reply is `True`.
         """
         publish_params = {}
-        pickled_rpc = cPickle.dumps(rpc_data)
 
         if expect_reply:
             self._startReplyConsumer()
             self.correlation_id = str(uuid.uuid4())
-            params = {'properties': pika.BasicProperties(reply_to=self.reply_queue, correlation_id=self.correlation_id)}
+            params = {'properties': pika.BasicProperties(reply_to=self.reply_queue,
+                                                         correlation_id=self.correlation_id)}
             publish_params.update(params)
 
-        self.channel.basic_publish(exchange=self.exchange, routing_key=self.queue, body=str(pickled_rpc),
-                                   **publish_params)
+        self.channel.basic_publish(exchange=self.config['exchange'], routing_key=self.config['queue_name'],
+                                   body=body_data, **publish_params)
 
         if expect_reply:
             self._replyWaitLoop()
-            return self._rpc_reply
+
+            reply = self._rpc_reply
+            self._rpc_reply = None
+            return reply
 
         return
     #---
@@ -139,10 +143,12 @@ class RPCClient(object):
         Loops until a response is received or the wait timeout elapses.
 
         """
-        self.connection.add_timeout(self._reply_timeout, self._timeoutElapsed)
+        timeout_id = self.connection.add_timeout(self.config['reply_timeout'], self._timeoutElapsed)
 
         while self._rpc_reply is None:
             self.connection.process_data_events()
+
+        self.connection.remove_timeout(timeout_id)
     #---
 
     def _timeoutElapsed(self):
@@ -152,14 +158,12 @@ class RPCClient(object):
 
         :raises: ReplyTimeoutError
         """
-        raise ReplyTimeoutError('Reply timeout of %i s elapsed with no response' % self._reply_timeout)
+        raise ReplyTimeoutError('Reply timeout of %is elapsed with no response' % self.config['reply_timeout'])
     #---
 
     def _consumerCallback(self, ch, method, props, body):
         """
         Accepts the response to a an RPC call.
-
-        This method expects pickled data!
 
         :param ch: Channel
         :type ch: object
@@ -170,18 +174,19 @@ class RPCClient(object):
 
         """
         if props.correlation_id == self.correlation_id:
-            self._rpc_reply = cPickle.loads(body)
+            self._rpc_reply = body
     #---
 
     def _connect(self):
         """
-        Connects to the RabbitMQ server.
+        Connects to the RabbitMQ server.  Also creates an exclusive reply queue to be used when a call needs to
+        pass data back to the client.
 
         """
         queue_params = {}
 
-        if self.reply_queue:
-            queue_params.update({'queue':self.reply_queue})
+        if self.config['reply_queue']:
+            queue_params.update({'queue':self.config['reply_queue']})
 
         try:
             self.connection = pika.BlockingConnection(self.connection_params)
@@ -190,6 +195,7 @@ class RPCClient(object):
 
         self.channel = self.connection.channel()
 
+        # Creates a unique reply queue for just this connection (thus the exclusive)
         result = self.channel.queue_declare(exclusive=True, **queue_params)
         self.reply_queue = result.method.queue
     #---
@@ -199,7 +205,7 @@ class RPCClient(object):
         Sets up the connection information.
 
         """
-        self.connection_params = pika.ConnectionParameters(**self.connection_settings)
+        self.connection_params = pika.ConnectionParameters(**self.config['connection_settings'])
     #---
 
     def _createCredentials(self):
@@ -207,7 +213,12 @@ class RPCClient(object):
         Creates a PlainCredentials class for use by ConnectionParameters.
 
         """
-        creds = pika.PlainCredentials(self.connection_settings['username'], self.connection_settings['password'])
-        self.connection_settings.update({'credentials': creds})
+        creds = pika.PlainCredentials(self.config['connection_settings']['username'],
+                                      self.config['connection_settings']['password'])
+        self.config['connection_settings'].update({'credentials': creds})
+
+        # Remove the original auth values
+        del self.config['connection_settings']['username']
+        del self.config['connection_settings']['password']
     #---
 #---
