@@ -274,8 +274,13 @@ class RPCClient(object):
             varargs = ', '.join(func_args['var'])
 
         if func_args['kw'] is not None:
-            kwargs = ', '.join(map(convert_kwargs, func_args['kw']))
-            proxy_kwargs = ', '.join(map(lambda key: '%s = %s' % (key, key), func_args['kw'].keys()))
+            kw_list = map(convert_kwargs, func_args['kw'])
+            kw_list.reverse()
+            kwargs = ', '.join(kw_list)
+
+            proxy_list = map(lambda key: '%s = %s' % (key, key), func_args['kw'].keys())
+            proxy_list.reverse()
+            proxy_kwargs = ', '.join(proxy_list)
 
         # Build the 'def' arg list
         if varargs:
