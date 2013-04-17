@@ -2,7 +2,7 @@
 #
 # $Id: $
 #
-# NAME:         parser.py
+# NAME:         .py
 #
 # AUTHOR:       Nick Whalen <nickw@mindstorm-networks.net>
 # COPYRIGHT:    2013 by Nick Whalen
@@ -20,22 +20,7 @@
 #   limitations under the License.
 #
 # DESCRIPTION:
-#   Subclasses ConfigParser to produce confg dicts.
+#
 #
 
 
-import ConfigParser
-
-class IniParser(ConfigParser.ConfigParser):
-    """
-    Subclasses ConfigParser to provide a config dict.
-
-    """
-    def as_dict(self):
-        config_dict = dict(self._sections)
-        for k in config_dict:
-            config_dict[k] = dict(self._defaults, **config_dict[k])
-            config_dict[k].pop('__name__', None)
-        return config_dict
-    #---
-#---

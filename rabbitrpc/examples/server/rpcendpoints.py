@@ -57,6 +57,19 @@ def echo(to_echo):
 #---
 
 @register.RPCFunction
+def accept_varargs(arg1, arg2):
+    """
+    Just demonstrates that varargs work.
+
+    :param arg1: First arg
+    :param arg2: Second arg
+    :return:
+    """
+
+    return 'arg1: %s\narg1: %s' % (arg1,arg2)
+#---
+
+@register.RPCFunction
 def accept_keywords(random_arg='Yes', bob='The price is WRONG'):
     """
     Just demonstrates that keyword arguments work too.
@@ -67,4 +80,18 @@ def accept_keywords(random_arg='Yes', bob='The price is WRONG'):
     """
 
     return 'random_arg: %s\nbob: %s' % (random_arg,bob)
+#---
+
+@register.RPCFunction
+def varargs_and_keywords(arg1, random_arg='Yes', bob='The price is WRONG'):
+    """
+    Just demonstrates that keyword arguments work too.
+
+    :param arg1: First arg
+    :param random_arg: A keyword arg
+    :param bob: Another keyword arg
+    :return:
+    """
+
+    return 'arg1: %s\nrandom_arg: %s\nbob: %s' % (arg1, random_arg,bob)
 #---
