@@ -33,6 +33,19 @@ import traceback
 from rabbitrpc.server import rpcserver
 
 
+MQ_CONFIG = {
+    'queue_name': 'rabbitrpc',
+    'exchange': '',
+
+    'connection_settings': {
+        'host': 'localhost',
+        'port': 5672,
+        'virtual_host': '/',
+        'username': 'guest',
+        'password': 'guest',
+    }
+}
+
 class Test_register_definition(object):
     """
     Tests RPCServer's `register_definition` method.
@@ -51,6 +64,7 @@ class Test_register_definition(object):
                 },
             }
         }
+        self.module_map = dict(some_module='some_module')
         self.hash = hash(cPickle.dumps(self.definition))
 
         self.local_rpcserver = reload(rpcserver)
@@ -62,7 +76,7 @@ class Test_register_definition(object):
         Tests that register_definition adds the function definition to the appropriate class variable
 
         """
-        self.local_rpcserver.RPCServer.register_definition(self.definition)
+        self.local_rpcserver.RPCServer.register_definition(self.definition, self.module_map)
 
         assert self.local_rpcserver.RPCServer.definitions == self.definition
     #---
@@ -83,7 +97,7 @@ class Test_register_definition(object):
         expected = copy.deepcopy(self.definition)
         expected['some_module'].update(new_def['some_module'])
 
-        self.local_rpcserver.RPCServer.register_definition(new_def)
+        self.local_rpcserver.RPCServer.register_definition(new_def, self.module_map)
 
         assert self.local_rpcserver.RPCServer.definitions == expected
     #---
@@ -103,7 +117,7 @@ class Test_register_definition(object):
         expected = copy.deepcopy(new_def)
         expected.update(self.definition)
 
-        self.local_rpcserver.RPCServer.register_definition(new_def)
+        self.local_rpcserver.RPCServer.register_definition(new_def, self.module_map)
 
         assert self.local_rpcserver.RPCServer.definitions == expected
     #---
@@ -113,7 +127,7 @@ class Test_register_definition(object):
         Tests that register_definition re-hashes the function definitions after adding a new definition
 
         """
-        self.local_rpcserver.RPCServer.register_definition(self.definition)
+        self.local_rpcserver.RPCServer.register_definition(self.definition, self.module_map)
 
         assert self.local_rpcserver.RPCServer.definitions_hash == self.hash
     #---
@@ -131,13 +145,10 @@ class Test___init__(object):
 
         """
         self.local_rpcserver = reload(rpcserver)
-        self.config_file = 'bob.txt'
 
-        self.config_parser = mock.MagicMock()
-        self.local_rpcserver.iniparser.IniParser = mock.MagicMock(return_value=self.config_parser)
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
 
-        self.server = self.local_rpcserver.RPCServer(self.config_file)
+        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
     #---
 
     def test_StartsALogger(self):
@@ -146,22 +157,6 @@ class Test___init__(object):
 
         """
         assert self.local_rpcserver.logging.getLogger.called == True
-    #---
-
-    def test_ReadsConfigFile(self):
-        """
-        Tests that __init__ reads the config file.
-
-        """
-        self.config_parser.read.assert_called_once_with(self.config_file)
-    #---
-
-    def test_ParsesConfigToDict(self):
-        """
-        Tests that __init__ parses the config file to a dict.
-
-        """
-        self.config_parser.as_dict.assert_called_once_with()
     #---
 #---
 
@@ -176,25 +171,13 @@ class Test_run(object):
         Test setup
 
         """
-        self.config = {
-            'RabbitMQ': {
-                'queue_name': 'nothing',
-                'exchange': 'Nope',
-                'port': 191,
-            }
-        }
-        self.neutered_config = {
-            'port': 191,
-        }
         self.local_rpcserver = reload(rpcserver)
 
-        self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
         self.rabbit_consumer = mock.MagicMock()
         self.local_rpcserver.consumer.Consumer = mock.MagicMock(return_value=self.rabbit_consumer)
 
-        self.server = self.local_rpcserver.RPCServer('')
-        self.server.config = copy.deepcopy(self.config)
+        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
         self.server.run()
     #---
 
@@ -204,7 +187,7 @@ class Test_run(object):
 
         """
         self.local_rpcserver.consumer.Consumer.assert_called_with(self.server._rabbit_callback,
-                self.config['RabbitMQ']['queue_name'], self.config['RabbitMQ']['exchange'], self.neutered_config )
+                MQ_CONFIG['queue_name'], MQ_CONFIG['exchange'], MQ_CONFIG['connection_settings'] )
     #---
 
     def test_RunsTheConsumer(self):
@@ -227,15 +210,25 @@ class Test_stop(object):
         Test setup
 
         """
+        mq_config = {
+            'queue_name': 'rabbitrpc',
+            'exchange': '',
+
+            'connection_settings': {
+                'host': 'localhost',
+                'port': 5672,
+                'virtual_host': '/',
+                'username': 'guest',
+                'password': 'guest',
+            }
+        }
         self.local_rpcserver = reload(rpcserver)
 
-
-        self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
         self.rabbit_consumer = mock.MagicMock()
         self.local_rpcserver.consumer.Consumer = mock.MagicMock(return_value=self.rabbit_consumer)
 
-        self.server = self.local_rpcserver.RPCServer('')
+        self.server = self.local_rpcserver.RPCServer(mq_config)
         self.server.run()
         self.server.stop()
     #---
@@ -268,10 +261,9 @@ class Test_provide_definitions(object):
         }
         self.hash = hash(cPickle.dumps(self.definition))
 
-        self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
 
-        self.server = self.local_rpcserver.RPCServer('')
+        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
         self.server.definitions = self.definition
         self.server.definitions_hash = self.hash
     #---
@@ -307,10 +299,9 @@ class Test_current_hash(object):
         }
         self.hash = hash(cPickle.dumps(self.definition))
 
-        self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
 
-        self.server = self.local_rpcserver.RPCServer('')
+        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
         self.server.definitions_hash = self.hash
     #---
 
@@ -359,10 +350,9 @@ class Test__validate_request_structure(object):
         """
         self.local_rpcserver = reload(rpcserver)
 
-        self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
 
-        self.server = self.local_rpcserver.RPCServer('')
+        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
     #---
 
     def test_RaisesErrorIfCallNameNotDefined(self):
@@ -543,7 +533,6 @@ class Test__validate_call(object):
         """
         self.local_rpcserver = reload(rpcserver)
 
-        self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
 
         self.local_rpcserver.RPCServer.definitions = {
@@ -554,7 +543,8 @@ class Test__validate_call(object):
             }
         }
 
-        self.server = self.local_rpcserver.RPCServer('')
+        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
+        self.server._module_map['sys'] = 'sys'
     #---
 
     def test_RaisesErrorIfInternalCallNotDefined(self):
@@ -685,10 +675,9 @@ class Test__encode_result(object):
         """
         self.local_rpcserver = reload(rpcserver)
 
-        self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
         self.local_rpcserver.logging = mock.MagicMock()
 
-        self.server = self.local_rpcserver.RPCServer('')
+        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
     #---
 
     def test_IncludesResult(self):
@@ -771,10 +760,9 @@ class Test__rabbit_callback(object):
         """
         self.local_rpcserver = reload(rpcserver)
 
-        self.local_rpcserver.iniparser.IniParser = mock.MagicMock()
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
 
-        self.server = self.local_rpcserver.RPCServer('')
+        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
     #---
 
     def test_RaisesInvalidMessageErrorIfBodyCantBeDecoded(self):
