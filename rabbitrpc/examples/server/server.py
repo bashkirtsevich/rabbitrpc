@@ -25,9 +25,10 @@
 
 import logging
 from rabbitrpc.server import rpcserver
-from .config import RABBITMQ_CONFIG
+from rabbitrpc.examples.server.config import RABBITMQ_CONFIG
 
 # This loads the module which has our endpoints we want to register
+from rabbitrpc.examples.server import rpcendpoints
 
 # Set up root logger
 log_format = '%(asctime)s %(name)s [%(levelname)s]: %(message)s'

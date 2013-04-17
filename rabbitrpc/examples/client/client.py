@@ -24,13 +24,13 @@
 #
 
 from rabbitrpc.client import rpcclient
-from .config import RABBITMQ_CONFIG
+from rabbitrpc.examples.client.config import RABBITMQ_CONFIG
 
-client = rpcclient.RPCClient(RABBITMQ_CONFIG)
+client = rpcclient.RPCClient(RABBITMQ_CONFIG, print_tracebacks=True)
 client.start()
 
 import rpcendpoints
-result = rpcendpoints.varargs_and_keywords()
+result = rpcendpoints.varargs_and_keywords('This is a vararg')
 
 print 'result: %s' % result
 
