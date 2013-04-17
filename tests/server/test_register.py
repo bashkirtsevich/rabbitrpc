@@ -47,7 +47,7 @@ class Test_RPCFunction(object):
         #---
 
         self.server_stub = RPCServerStub
-        self.module = self.__module__
+        self.module = self.__module__.split('.')[-1]
 
         self.local_register = reload(register)
         self.local_register.rpcserver.RPCServer = RPCServerStub
@@ -187,7 +187,7 @@ class Test_RPCFunction(object):
         #---
         self.local_register.RPCFunction(function_local_module)
 
-        assert self.__module__ in self.server_stub.definitions
+        assert self.module in self.server_stub.definitions
     #---
 
     def test_FunctionNameIsIncluded(self):

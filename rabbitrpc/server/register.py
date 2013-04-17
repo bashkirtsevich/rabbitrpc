@@ -71,8 +71,10 @@ def RPCFunction(function):
     if function.__doc__:
         docs = inspect.cleandoc(function.__doc__)
 
+    # We're not interested in the full path
+    stripped_module = function.__module__.split('.')[-1]
     function_definition = {
-        function.__module__: {
+        stripped_module: {
             function.__name__: dict(args=args, doc=docs)
         }
     }
