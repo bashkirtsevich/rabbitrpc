@@ -79,7 +79,7 @@ def RPCFunction(function):
         }
     }
 
-    rpcserver.RPCServer.register_definition(function_definition)
+    rpcserver.RPCServer.register_definition(function_definition, {stripped_module: function.__module__})
 
     return function
 #---

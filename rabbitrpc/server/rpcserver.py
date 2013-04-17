@@ -24,7 +24,6 @@
 #
 
 import cPickle
-from rabbitrpc import iniparser
 import logging
 from rabbitrpc.rabbitmq import consumer
 import sys
@@ -53,16 +52,20 @@ class RPCServer(object):
     rabbit_consumer = None
     definitions = {}
     definitions_hash = None
+    _module_map = {}
     log = None
+    rabbit_config = None
 
 
     @classmethod
-    def register_definition(cls, definition):
+    def register_definition(cls, definition, module_map):
         """
         Registers an RPC call(s) with the server class.
 
         :param definition: The method(s) to register as an available RPC call
         :type definition: dict
+        :param module_map: Short name -> Long Name mapping
+        :type module_map: dict
 
         """
         for module,call_def in definition.items():
@@ -72,20 +75,22 @@ class RPCServer(object):
                 cls.definitions.update({module: call_def})
 
         cls.definitions_hash = hash(cPickle.dumps(cls.definitions))
+
+        cls._module_map.update(module_map)
     #---
 
 
-    def __init__(self, config_file):
+    def __init__(self, rabbit_config):
         """
         Constructor
 
-        :param config_file:
+        :param rabbit_config: The configuration for the RabbitMQ server.  For details see this example:
+            https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Definitions#rabbitmq-configuration
+        :type rabbit_config: dict
+
         """
         self.log = logging.getLogger(__name__)
-
-        config_parser = iniparser.IniParser()
-        config_parser.read(config_file)
-        self.config = config_parser.as_dict()
+        self.rabbit_config = rabbit_config
     #---
 
 
@@ -95,12 +100,9 @@ class RPCServer(object):
 
         """
         # TODO: Fix this after the consumer constructor is refactored
-        rabbit_config = self.config['RabbitMQ']
-        queue_name = rabbit_config.pop('queue_name')
-        exchange = rabbit_config.pop('exchange')
-        rabbit_config['port'] = int(rabbit_config['port'])
-
-        self.rabbit_consumer = consumer.Consumer(self._rabbit_callback, queue_name, exchange, rabbit_config)
+        self.rabbit_consumer = consumer.Consumer(self._rabbit_callback, self.rabbit_config['queue_name'],
+                                                 self.rabbit_config['exchange'],
+                                                 self.rabbit_config['connection_settings'])
 
         self.rabbit_consumer.run()
     #---
@@ -159,7 +161,8 @@ class RPCServer(object):
         if call_request['internal'] and not call_module:
             dynamic_method =  self.__getattribute__(call_name)
         else:
-            dynamic_method = sys.modules[call_module].__dict__[call_name]
+            full_module = self._module_map[call_request['module']]
+            dynamic_method = sys.modules[full_module].__dict__[call_name]
 
         self.log.info('Serving RPC request (%s.%s)' %(call_module, call_name))
 
@@ -216,13 +219,20 @@ class RPCServer(object):
 
         # Normal RPC methods
         else:
-            if (call_request['module'] not in self.definitions) or (call_request['module'] not in sys.modules):
-                raise ModuleError('%s is not a valid module on this server' % call_request['module'])
+            short_module = call_request['module']
 
-            elif call_request['call_name'] not in self.definitions[call_request['module']]:
-                raise CallError('%s is not defined on module %s' % (call_request['call_name'], call_request['module']))
+            if short_module not in self._module_map:
+                raise ModuleError('Something went very wrong. %s\'s map is missing. I am so lost...' % short_module)
 
-            elif not call_request['call_name'] in sys.modules[call_request['module']].__dict__:
+            long_module = self._module_map[short_module]
+
+            if (short_module not in self.definitions) or (long_module not in sys.modules):
+                raise ModuleError('%s is not a valid module on this server' % short_module)
+
+            elif call_request['call_name'] not in self.definitions[short_module]:
+                raise CallError('%s is not defined on module %s' % (call_request['call_name'], short_module))
+
+            elif not call_request['call_name'] in sys.modules[long_module].__dict__:
                 raise CallError('%s is not a valid call on this server' %call_request['call_name'])
     #---
 
@@ -250,7 +260,7 @@ class RPCServer(object):
             call_result['error'] = {}
             trace = traceback.format_exception(*exception_info)
             call_result['error']['traceback'] = ''.join(trace)
-            self.log.info('RPC request (%s.%s) raise an exception:\n%s'
+            self.log.info('RPC request (%s.%s) raised an exception:\n%s'
                           %(call_request['module'], call_request['call_name'], call_result['error']['traceback']))
 
         return cPickle.dumps(call_result)

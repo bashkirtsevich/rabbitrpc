@@ -40,10 +40,12 @@ class Test_RPCFunction(object):
         """
         class RPCServerStub(object):
             definitions = {}
+            _module_map = {}
 
             @classmethod
-            def register_definition(cls, definition):
+            def register_definition(cls, definition, module_map):
                 cls.definitions.update(definition)
+                cls._module_map.update(module_map)
         #---
 
         self.server_stub = RPCServerStub
