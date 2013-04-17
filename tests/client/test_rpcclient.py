@@ -25,6 +25,7 @@
 
 import imp
 import mock
+import pytest
 from rabbitrpc.client import rpcclient
 import sys
 
@@ -198,7 +199,7 @@ class Test_stop(object):
         Tests that `stop` stops the RabbitRPC producer
 
         """
-        self.producer.stop.called_once_with()
+        self.client.rabbit_producer.stop.assert_called_once_with()
     #---
 
     def test_TriggersModuleRemoval(self):
@@ -206,7 +207,7 @@ class Test_stop(object):
         Tests that `stop` triggers the removal of the RPC modules
 
         """
-        self.client._remove_rpc_modules.called_once_with()
+        self.client._remove_rpc_modules.assert_called_once_with()
     #---
 #---
 
@@ -453,15 +454,75 @@ class Test__result_handler(object):
         Test Setup
 
         """
+        class SomeRandomError(Exception): pass
+
+        self.result = SomeRandomError('Blah')
+        self.traceback = 'Some Traceback'
+        self.call_result ={
+            'call': {
+                'module': 'rpcendpoints',
+                'call_name': 'no',
+            },
+           'result': self.result,
+           'error': {
+               'traceback': self.traceback,
+           },
+        }
+
+        self.localclient = reload(rpcclient)
+
+        self.log = mock.MagicMock()
+        self.localclient.logging.getLogger = mock.MagicMock(return_value=self.log)
+        self.producer = mock.MagicMock()
+        self.localclient.producer.Producer = mock.MagicMock(self.producer)
+
+        self.client = self.localclient.RPCClient({})
     #---
 
-    def test_(self):
+    def test_ReturnsResult(self):
         """
-        Tests that
+        Tests that `_result_handler` returns the result
 
         """
+        self.call_result['result'] = self.result
+        self.call_result['error'] = None
+        self.handler_result = self.client._result_handler(self.call_result)
+
+        assert self.result == self.handler_result
+
     #---
 
+    def test_RaisesExceptionIfExists(self):
+        """
+        Tests that `_result_handler` will raise an exception if one exists
+
+        """
+        with pytest.raises(self.result.__class__):
+            self.client._result_handler(self.call_result)
+    #---
+
+    def test_LogsTracebackIfEnabled(self):
+        """
+        Tests that `_result_handler` logs  a traceback if logging is enabled.
+
+        """
+        try:
+            self.client._result_handler(self.call_result)
+        except self.result.__class__:
+            assert self.traceback in self.log.error.call_args[0][0]
+    #---
+
+    def test_DoesNotLogTracebackIfNotEnabled(self):
+        """
+        Tests that `_result_handler` does not log a traceback if logging is not enabled.
+
+        """
+        self.client.log_tracebacks = False
+        try:
+            self.client._result_handler(self.call_result)
+        except self.result.__class__:
+            assert self.traceback not in self.log.error.call_args[0][0]
+    #---
 #---
 
 class Test__fetch_definitions(object):
@@ -474,15 +535,73 @@ class Test__fetch_definitions(object):
         Test Setup
 
         """
+        self.result_data = {
+            'result': {
+                'definitions': {'bob': 'barker'},
+                'hash': 'Some Random Hash',
+            }
+        }
+        self.localclient = reload(rpcclient)
+
+        self.localclient.logging = mock.MagicMock()
+        self.producer = mock.MagicMock()
+        self.localclient.producer.Producer = mock.MagicMock(self.producer)
+        self.localclient.cPickle = mock.MagicMock()
+        self.localclient.cPickle.loads.return_value = self.result_data
+
+        self.client = self.localclient.RPCClient({})
+        self.client.rabbit_producer.send.return_value = self.result_data
+        self.client._fetch_definitions()
     #---
 
-    def test_(self):
+    def test_FormsProperCallRequest(self):
         """
-        Tests that
+        Tests that `_fetch_definitions` forms the proper call request.  Also tests (indirectly) that the data is
+        encoded with cPickle before being sent.
 
         """
+        call = {
+            'call_name': 'provide_definitions',
+            'args': None,
+            'internal': True,
+            'module': None,
+        }
+
+        self.localclient.cPickle.dumps.assert_called_once_with(call)
     #---
 
+    def test_SendsDataToRabbitMQ(self):
+        """
+        Tests that `_fetch_definitions` sends the data to the server
+
+        """
+        called = self.client.rabbit_producer.send.called
+        assert called
+    #---
+
+    def test_DecodesResultData(self):
+        """
+        Tests that `_fetch_definitions` decodes the result data
+
+        """
+        self.localclient.cPickle.loads.assert_called_once_with(self.result_data)
+    #---
+
+    def test_UpdatesDefinitions(self):
+        """
+        Tests that `_fetch_definitions` updates the definitions from the call result data.
+
+        """
+        assert self.client.definitions == self.result_data['result']['definitions']
+    #---
+
+    def test_UpdatesDefinitionsHash(self):
+        """
+        Tests that `_fetch_definitions` updates the definitions hash from the call result data.
+
+        """
+        assert self.client.definitions_hash == self.result_data['result']['hash']
+    #---
 #---
 
 class Test__build_rpc_modules(object):
@@ -495,15 +614,74 @@ class Test__build_rpc_modules(object):
         Test Setup
 
         """
+        self.module = 'rpcendpoints'
+        self.instantiated_module = imp.new_module(self.module)
+        self.function = 'bpb'
+        self.doc = 'Some docs'
+        self.definitions = {
+            self.module: {
+                self.function: {
+                    'args': None,
+                    'doc': self.doc,
+                }
+            }
+        }
+        self.localclient = reload(rpcclient)
+
+        self.localclient.logging = mock.MagicMock()
+        self.producer = mock.MagicMock()
+        self.localclient.producer.Producer = mock.MagicMock(self.producer)
+        self.localclient.imp.new_module = mock.MagicMock(return_value=self.instantiated_module)
+
+        self.client = self.localclient.RPCClient({})
+        self.client.definitions = self.definitions
+        self.client._build_module_functions = mock.MagicMock()
+
+        self.client._build_rpc_modules()
+
     #---
 
-    def test_(self):
+    def teardown_method(self, method):
         """
-        Tests that
+        Test Cleanup
 
         """
+        if self.module in sys.modules:
+            del sys.modules[self.module]
     #---
 
+    def test_CreatesNewModule(self):
+        """
+        Tests that `_build_rpc_modules` creates a new module with the requested name (in defs)
+
+        """
+        self.localclient.imp.new_module.assert_called_once_with(self.module)
+    #---
+
+    def test_TriggersFunctionBuilds(self):
+        """
+        Tests that `_build_rpc_modules` triggers the function builds
+
+        """
+        self.client._build_module_functions.assert_called_once_with(self.definitions[self.module], self.instantiated_module)
+    #---
+
+    def test_SetsProxyClassAttribute(self):
+        """
+        Tests that `_build_rpc_modules` sets a reference to the client class in the module (for callback use)
+
+        """
+        assert self.instantiated_module.proxy_class == self.client
+    #---
+
+    def test_RegistersModule(self):
+        """
+        Tests that `_build_rpc_modules` registers the module with Python
+
+        """
+        assert self.module in sys.modules
+        assert sys.modules[self.module] == self.instantiated_module
+    #---
 #---
 
 class Test__build_module_functions(object):
@@ -516,15 +694,98 @@ class Test__build_module_functions(object):
         Test Setup
 
         """
+        self.module = 'rpcendpoints'
+        self.instantiated_module = imp.new_module(self.module)
+        self.instantiated_module.proxy_class = self
+        self.function = 'bpb'
+        self.doc = 'Some docs'
+        self.def_args = {
+            'defined': {
+                'bob': 'barker',
+            },
+        }
+        self.definitions = {
+            self.module: {
+                self.function: {
+                    'args': None,
+                    'doc': self.doc,
+                }
+            }
+        }
+
+        self.args = 'bob'
+        self.proxy_args = ', bob'
+        self.arg_strings = (self.args, self.proxy_args)
+        self.localclient = reload(rpcclient)
+
+        self.localclient.logging = mock.MagicMock()
+        self.producer = mock.MagicMock()
+        self.localclient.producer.Producer = mock.MagicMock(self.producer)
+
+        self.client = self.localclient.RPCClient({})
+        self.client._convert_args_to_strings = mock.MagicMock(return_value=self.arg_strings)
+
+        self.client._build_module_functions(self.definitions[self.module], self.instantiated_module)
     #---
 
-    def test_(self):
+    def _proxy_handler(self, method_name, module, *varargs, **kwargs):
         """
-        Tests that
-
+        Helper for proxy call tests
         """
+        return method_name, module, varargs, kwargs
     #---
 
+    def test_ConvertsArgsToStringsIfTheyAreAvailable(self):
+        """
+        Tests that `_build_module_functions` converts the function args to strings for use in the proxy method
+        definitions.
+
+        """
+        self.definitions[self.module][self.function]['args'] = self.def_args
+        self.client._build_module_functions(self.definitions[self.module], self.instantiated_module)
+
+        self.client._convert_args_to_strings.assert_called_once_with(self.definitions[self.module][self.function]['args']['defined'])
+    #---
+
+    def test_DoesNotConvertArgsToStringsIfTheyAreNotAvailable(self):
+        """
+        Tests that `_build_module_functions`
+
+        """
+        called = self.client._convert_args_to_strings.called
+        assert not called
+    #---
+
+    def test_CreatesFunctionOnModuleWithProperName(self):
+        """
+        Tests that `_build_module_functions` creates a function on the module with the provided name
+
+        """
+        assert self.function in self.instantiated_module.__dict__
+    #---
+
+    def test_SetsTheFunctionsDocumentation(self):
+        """
+        Tests that `_build_module_functions` sets the function's doctag.  This test has to strip the doctag due to the
+        proxy function's definition being text and adding formatting/spacing.
+
+        """
+        assert self.doc == self.instantiated_module.__dict__[self.function].__doc__.strip()
+    #---
+
+    def test_SetsProxyHandlerCallWithAppropriateInformation(self):
+        """
+        Tests that `_build_module_functions` appropriately sets the proxy function's arguments
+
+        """
+        self.definitions[self.module][self.function]['args'] = self.def_args
+        self.client._build_module_functions(self.definitions[self.module], self.instantiated_module)
+
+        test_value = 'some Test'
+        proxy_handler_return = self.instantiated_module.__dict__[self.function](test_value)
+
+        assert proxy_handler_return == (self.function, self.module, (test_value,), {})
+    #---
 #---
 
 class Test__convert_args_to_strings(object):
@@ -537,15 +798,47 @@ class Test__convert_args_to_strings(object):
         Test Setup
 
         """
+        self.localclient = reload(rpcclient)
+
+        self.localclient.logging = mock.MagicMock()
+        self.producer = mock.MagicMock()
+        self.localclient.producer.Producer = mock.MagicMock(self.producer)
+
+        self.client = self.localclient.RPCClient({})
     #---
 
-    def test_(self):
+    def test_ConvertsVarArgsToStringsIfTheyAreAvailable(self):
         """
-        Tests that
+        Tests that `_convert_args_to_strings` converts varargs to the function argument and proxy handler call argument
+        strings.
 
         """
+        varargs = ('bob', 'barker')
+        args = dict(kw=None, var=varargs)
+        arg_tuple = self.client._convert_args_to_strings(args)
+
+        expected_return = ('%s, %s' % (varargs[0], varargs[1]), ', %s, %s' % (varargs[0], varargs[1]))
+
+        assert arg_tuple == expected_return
     #---
 
+    def testConvertsKWargsToStringsIfTheyAreAvailable(self):
+        """
+        Tests that `_convert_args_to_strings`converts kwargs to the function argument and proxy handler call argument
+        strings.
+
+        """
+        arg1 = 'wat'
+        arg2 = 'bob'
+        kwargs = {arg1: 'No', arg2: 'barker'}
+        args = dict(kw=kwargs, var=None)
+        arg_tuple = self.client._convert_args_to_strings(args)
+
+        expected_return = ('%s = "%s", %s = "%s"' % (arg1, kwargs[arg1], arg2 , kwargs[arg2] ),
+                           ', %s = %s, %s = %s' % (arg1, arg1, arg2, arg2))
+
+        assert arg_tuple == expected_return
+    #---
 #---
 class Test__remove_rpc_modules(object):
     """
@@ -567,10 +860,8 @@ class Test__remove_rpc_modules(object):
 
         self.client.definitions = {
             'rpcendpoints': {
-
             },
             'bobbarker': {
-
             }
         }
         sys.modules['rpcendpoints'] = imp.new_module('testmodule')
@@ -582,8 +873,7 @@ class Test__remove_rpc_modules(object):
         Tests that `_remove_rpc_modules` does not alter sys.modules if there are no definitions
 
         """
-        self.client.definitions = {
-        }
+        self.client.definitions = {}
         new_module = imp.new_module('testmodule')
         sys.modules['rpcendpoints'] = new_module
 
