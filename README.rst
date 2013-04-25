@@ -2,6 +2,7 @@
 RabbitRPC
 =========
 :Author: Nick Whalen <nickw@mindstorm-networks.net>
+:Current Version: 0.7.0
 
 RabbitRPC is an RPC over AMQP framework for Python.  It allows the user to worry less about how he's doing remote method
 calls and more about her/his actual code.  It was written to scratch an itch that developed during the development of a
