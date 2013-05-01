@@ -25,15 +25,17 @@
 
 import cPickle
 import logging
-from rabbitrpc.rabbitmq import consumer
 import sys
 import traceback
+
+from rabbitrpc.rabbitmq import consumer
 
 
 class RPCServerError(Exception): pass
 class CallError(RPCServerError): pass
 class CallFormatError(RPCServerError): pass
 class ModuleError(RPCServerError): pass
+class AuthenticationError(RPCServerError): pass
 
 
 class RPCServer(object):
@@ -41,11 +43,16 @@ class RPCServer(object):
     Implements the server side of RPC over RabbitMQ.
 
     """
+    _authentication_plugin = None
+    _authenticator = None
     internal_definitions = {
         'provide_definitions' : {
             'args': None,
             },
         'current_hash' : {
+            'args': None,
+            },
+        'authentication_provider_info' : {
             'args': None,
             },
     }
@@ -79,6 +86,18 @@ class RPCServer(object):
         cls._module_map.update(module_map)
     #---
 
+    @classmethod
+    def register_authentication_plugin(cls, object_reference):
+        """
+        Registers an authentication plugin for use by the server.  Currently only one plugin is allowed to be active
+        at any given time.  Validation is done by the plugin decorator.
+
+        :param object_reference: Class which implements the authentication plugin API
+        :type object_reference: object
+
+        """
+        cls._authentication_plugin = object_reference
+    #---
 
     def __init__(self, rabbit_config):
         """
@@ -91,6 +110,13 @@ class RPCServer(object):
         """
         self.log = logging.getLogger(__name__)
         self.rabbit_config = rabbit_config
+
+        # Setup authentication, if it's available
+        if self._authentication_plugin:
+            self._authenticator = self._authentication_plugin.create()
+            self.log.info("Using request authentication via the '%s' plugin" % self._authenticator.about()['name'])
+        else:
+            self.log.warning('No authentication plugin available, starting without request authentication')
     #---
 
 
@@ -145,6 +171,18 @@ class RPCServer(object):
     #---
 
 
+    def authentication_provider_info(self):
+        """
+        Returns information about the authentication plugin
+
+        :return: Information about the authentication plugin
+        :rtype: dict
+
+        """
+        return self._authenticator.about()
+    #---
+
+
     def _run_call(self, call_request):
         """
         Runs the specified call with or without args, depending on 'args' data.
@@ -176,6 +214,24 @@ class RPCServer(object):
         return dynamic_method(*args['varargs'], **args['kwargs'])
     #---
 
+    def _authenticate_request(self, call_request):
+        """
+
+        :param call_request:
+        :return:
+        """
+        authen_results = self._authenticator.authenticate(call_request['credentials'])
+
+        if not authen_results[0]:
+            if not authen_results[1]:
+                reason = 'No reason provided by authentication provider'
+            else:
+                reason = authen_results[1]
+
+            raise AuthenticationError(reason)
+    #---
+
+
     def _validate_request_structure(self, call_request):
         """
         Validates that the call request's data-structure is sane.
@@ -184,6 +240,10 @@ class RPCServer(object):
         :type call_request: dict
 
         """
+        # If authentication is enabled, check for credentials
+        if self._authentication_plugin and 'credentials' not in call_request:
+            raise AuthenticationError('This server requires credentials and none were provided')
+
         if 'call_name' not in call_request:
             raise CallFormatError('call_name parameter is missing')
 
@@ -286,9 +346,11 @@ class RPCServer(object):
         except Exception:
             raise consumer.InvalidMessageError(body)
 
+        # Attempt to process the request, trapping any errors and sending them back to the client
         try:
             self._validate_request_structure(call_request)
             self._validate_call(call_request)
+            self._authenticate_request(call_request)
             result = self._run_call(call_request)
         except Exception as result:
             exception_info = sys.exc_info()
