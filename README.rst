@@ -3,6 +3,10 @@ RabbitRPC
 =========
 :Author: Nick Whalen <nickw@mindstorm-networks.net>
 :Version: 0.7.0
+:Added: RPC Request Authentication
+  Fixes for multi-client/server instances, in prep for RPC class endpoints
+  Rabbit consumer config refactoring
+  Additional logging on server
 
 RabbitRPC is an RPC over AMQP framework for Python.  It allows the user to worry less about how he's doing remote method
 calls and more about her/his actual code.  It was written to scratch an itch that developed during the development of a
