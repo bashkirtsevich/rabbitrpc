@@ -1,0 +1,10 @@
+Authentication
+==============
+**Client Side:**
+The client can provide credentials in one of two ways, by setting the 'credentials' key in the client's config
+dictionary, or by registering an authentication plugin.
+
+NOTE: If there are credentials in the config dict and an authentication plugin loaded, the credentials from the
+plugin will _always_ overwrite those provided in the dict.
+
+**Server Side:**
