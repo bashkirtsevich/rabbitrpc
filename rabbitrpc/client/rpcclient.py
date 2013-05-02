@@ -46,15 +46,16 @@ class RPCClient(object):
 
     """
     _authentication_plugin = None
-    _authenticator = None
-
     rabbit_producer = None
     definitions = None
     definitions_hash = None
     last_traceback = None
     print_tracebacks = False
     log_tracebacks = True
-    config = {}
+    config = {
+        'rabbitmq': {},
+        'credentials': None,
+    }
 
     @classmethod
     def register_authentication_plugin(cls, object_reference):
@@ -74,7 +75,7 @@ class RPCClient(object):
         Constructor
 
         :param config: The configuration for the RPC client and RabbitMQ producer.  For RMQ config details see this
-            example: https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Defintions#rabbitmq-configuration
+            example: https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Definitions#rabbitmq-configuration
         :type config: dict
         :param print_tracebacks: Controls printing of rpc call tracebacks to stdout.  Defaults to ``False``.
         :type print_tracebacks: bool
@@ -105,6 +106,10 @@ class RPCClient(object):
         Starts the RPC client
 
         """
+        # If an auth plugin is loaded, store the credentials the server plugin will require
+        if self._authentication_plugin:
+            self.config['credentials'] = self._authentication_plugin.provide_credentials(self.config['authentication_plugin'])
+
         self.rabbit_producer.start()
         self.refresh()
     #---
@@ -161,9 +166,9 @@ class RPCClient(object):
             'module': module,
         }
 
-        # If an auth plugin is loaded, get the credentials for this client
-        if self._authentication_plugin:
-            self._authentication_plugin.provide_credentials(self.config['authentication_plugin'])
+        # Allows for plugin-free credentials (simple implementations)
+        if self.config['credentials']:
+            call['credentials'] = self.config['credentials']
 
         encoded_data = self.rabbit_producer.send(cPickle.dumps(call))
         decoded_results = cPickle.loads(encoded_data)
