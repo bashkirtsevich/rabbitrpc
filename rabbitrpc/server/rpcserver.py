@@ -214,11 +214,13 @@ class RPCServer(object):
         return dynamic_method(*args['varargs'], **args['kwargs'])
     #---
 
+
     def _authenticate_request(self, call_request):
         """
+        Authenticates the call
 
         :param call_request:
-        :return:
+
         """
         authen_results = self._authenticator.authenticate(call_request['credentials'])
 
