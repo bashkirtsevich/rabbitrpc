@@ -64,6 +64,7 @@ class RPCServer(object):
     config = {
         'rabbitmq': {},
         'authentication_plugin': None,
+        'shared_secret': None,
     }
 
 
@@ -224,16 +225,24 @@ class RPCServer(object):
 
         :param call_request:
 
+        :raises: AuthenticationError
+
         """
-        authen_results = self._authenticator.authenticate(call_request['credentials'])
+        if self._authenticator:
+            authen_results = self._authenticator.authenticate(call_request['credentials'])
 
-        if not authen_results[0]:
-            if not authen_results[1]:
-                reason = 'No reason provided by authentication provider'
-            else:
-                reason = authen_results[1]
+            if not authen_results[0]:
+                if not authen_results[1]:
+                    reason = 'No reason provided by authentication provider'
+                else:
+                    reason = authen_results[1]
 
-            raise AuthenticationError(reason)
+                raise AuthenticationError(reason)
+
+        # Provide a _very_ basic shared-secret-type auth natively, just as a convenience
+        elif call_request['credentials'] and self.config['shared_secret']:
+            if self.config['shared_secret'] != call_request['credentials']:
+                raise AuthenticationError('Shared secret does not match')
     #---
 
 
