@@ -62,7 +62,7 @@ class RPCServer(object):
     _module_map = {}
     log = None
     config = {
-        'rabbitmq': None,
+        'rabbitmq': {},
         'authentication_plugin': None,
     }
 
