@@ -61,7 +61,10 @@ class RPCServer(object):
     definitions_hash = None
     _module_map = {}
     log = None
-    rabbit_config = None
+    config = {
+        'rabbitmq': None,
+        'authentication_plugin': None,
+    }
 
 
     @classmethod
@@ -99,21 +102,21 @@ class RPCServer(object):
         cls._authentication_plugin = object_reference
     #---
 
-    def __init__(self, rabbit_config):
+    def __init__(self, config):
         """
         Constructor
 
-        :param rabbit_config: The configuration for the RabbitMQ server.  For details see this example:
-            https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Definitions#rabbitmq-configuration
-        :type rabbit_config: dict
+        :param config: The configuration for the RPC server and RabbitMQ producer.  For RMQ config details see this
+            example: https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Definitions#rabbitmq-configuration
+        :type config: dict
 
         """
         self.log = logging.getLogger(__name__)
-        self.rabbit_config = rabbit_config
+        self.config.update(config)
 
         # Setup authentication, if it's available
         if self._authentication_plugin:
-            self._authenticator = self._authentication_plugin.create()
+            self._authenticator = self._authentication_plugin.create(self.config['authentication_plugin'])
             self.log.info("Using request authentication via the '%s' plugin" % self._authenticator.about()['name'])
         else:
             self.log.warning('No authentication plugin available, starting without request authentication')
@@ -126,9 +129,9 @@ class RPCServer(object):
 
         """
         # TODO: Fix this after the consumer constructor is refactored
-        self.rabbit_consumer = consumer.Consumer(self._rabbit_callback, self.rabbit_config['queue_name'],
-                                                 self.rabbit_config['exchange'],
-                                                 self.rabbit_config['connection_settings'])
+        self.rabbit_consumer = consumer.Consumer(self._rabbit_callback, self.config['rabbitmq']['queue_name'],
+                                                 self.config['rabbitmq']['exchange'],
+                                                 self.config['rabbitmq']['connection_settings'])
 
         self.rabbit_consumer.run()
     #---

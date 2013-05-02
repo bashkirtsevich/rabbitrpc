@@ -11,6 +11,10 @@ RabbitRPC
 
   Additional logging on server
 
+**BREAKING CONFIG CHANGE:** 0.7.0 contains a breaking change to the server/client class configuration dictionary!
+The RabbitMQ config dictionary has now been changed to a general config dictionary, with the RabbitMQ configuation being
+assigned to the 'rabbitmq' key in the new general config.
+
 RabbitRPC is an RPC over AMQP framework for Python.  It allows the user to worry less about how he's doing remote method
 calls and more about her/his actual code.  It was written to scratch an itch that developed during the development of a
 much larger software project which needed a highly scalable internal API.

@@ -45,20 +45,37 @@ class RPCClient(object):
     Implements the client side of RPC over RabbitMQ.
 
     """
+    _authentication_plugin = None
+    _authenticator = None
+
     rabbit_producer = None
     definitions = None
     definitions_hash = None
     last_traceback = None
     print_tracebacks = False
     log_tracebacks = True
+    config = {}
 
-    def __init__(self, rabbit_config, print_tracebacks = False, log_tracebacks = True):
+    @classmethod
+    def register_authentication_plugin(cls, object_reference):
+        """
+        Registers an authentication plugin for use by the client.  Currently only one plugin is allowed to be active
+        at any given time.  Validation is done by the plugin decorator.
+
+        :param object_reference: Class which implements the authentication plugin API
+        :type object_reference: object
+
+        """
+        cls._authentication_plugin = object_reference
+    #---
+
+    def __init__(self, config, print_tracebacks = False, log_tracebacks = True):
         """
         Constructor
 
-        :param rabbit_config: The configuration for the RabbitMQ server.  For details see this example:
-            https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Defintions#rabbitmq-configuration
-        :type rabbit_config: dict
+        :param config: The configuration for the RPC client and RabbitMQ producer.  For RMQ config details see this
+            example: https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Defintions#rabbitmq-configuration
+        :type config: dict
         :param print_tracebacks: Controls printing of rpc call tracebacks to stdout.  Defaults to ``False``.
         :type print_tracebacks: bool
         :param log_tracebacks: Controls printing of rpc call tracebacks to the error log.  Defaults to ``True``.
@@ -69,7 +86,9 @@ class RPCClient(object):
 
         self.log = logging.getLogger (__name__)
 
-        self.rabbit_producer = producer.Producer(rabbit_config)
+        self.config.update(config)
+
+        self.rabbit_producer = producer.Producer(self.config['rabbitmq'])
     #---
 
     def __del__(self):
@@ -141,6 +160,10 @@ class RPCClient(object):
             'internal': False,
             'module': module,
         }
+
+        # If an auth plugin is loaded, get the credentials for this client
+        if self._authentication_plugin:
+            self._authentication_plugin.provide_credentials(self.config['authentication_plugin'])
 
         encoded_data = self.rabbit_producer.send(cPickle.dumps(call))
         decoded_results = cPickle.loads(encoded_data)
