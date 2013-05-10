@@ -1,9 +1,0 @@
-If you want to run these examples and you don't have rabbitrpc installed in
-your Python path, you'll need to set PYTHONPATH to point to the package.
-You will also need to set up your RabbitMQ config in 'config.py' for both
-the server and client or you're going to have a bad time :).
-
-Examples from this directory:
-PYTHONPATH=../../ python server/server.py
-
-PYTHONPATH=../../ python client/client.py
