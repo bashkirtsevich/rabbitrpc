@@ -75,7 +75,7 @@ class RPCClient(object):
         Constructor
 
         :param config: The configuration for the RPC client and RabbitMQ producer.  For RMQ config details see this
-            example: https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Definitions#rabbitmq-configuration
+            example: https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Defintions#rabbitmq-configuration
         :type config: dict
         :param print_tracebacks: Controls printing of rpc call tracebacks to stdout.  Defaults to ``False``.
         :type print_tracebacks: bool

@@ -108,7 +108,7 @@ class RPCServer(object):
         Constructor
 
         :param config: The configuration for the RPC server and RabbitMQ producer.  For RMQ config details see this
-            example: https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Definitions#rabbitmq-configuration
+            example: https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Defintions#rabbitmq-configuration
         :type config: dict
 
         """
