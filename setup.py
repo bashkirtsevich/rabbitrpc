@@ -13,7 +13,7 @@ finally:
 
 
 setup(name='rabbitrpc',
-      version='0.6.1',
+      version='0.6.2',
       platforms=('Any'),
       author='Nick Whalen',
       author_email='nickw@mindstorm-networks.net',
