@@ -46,6 +46,10 @@ MQ_CONFIG = {
     }
 }
 
+CONFIG = {
+  'rabbitmq': MQ_CONFIG,
+}
+
 class Test_register_definition(object):
     """
     Tests RPCServer's `register_definition` method.
@@ -148,7 +152,7 @@ class Test___init__(object):
 
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
 
-        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
+        self.server = self.local_rpcserver.RPCServer(CONFIG)
     #---
 
     def test_StartsALogger(self):
@@ -177,7 +181,7 @@ class Test_run(object):
         self.rabbit_consumer = mock.MagicMock()
         self.local_rpcserver.consumer.Consumer = mock.MagicMock(return_value=self.rabbit_consumer)
 
-        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
+        self.server = self.local_rpcserver.RPCServer(CONFIG)
         self.server.run()
     #---
 
@@ -186,8 +190,7 @@ class Test_run(object):
         Tests that run creates a consumer, also tests that the config gets neutered before being passed.
 
         """
-        self.local_rpcserver.consumer.Consumer.assert_called_with(self.server._rabbit_callback,
-                MQ_CONFIG['queue_name'], MQ_CONFIG['exchange'], MQ_CONFIG['connection_settings'] )
+        self.local_rpcserver.consumer.Consumer.assert_called_with(self.server._rabbit_callback, CONFIG['rabbitmq'])
     #---
 
     def test_RunsTheConsumer(self):
@@ -210,25 +213,13 @@ class Test_stop(object):
         Test setup
 
         """
-        mq_config = {
-            'queue_name': 'rabbitrpc',
-            'exchange': '',
-
-            'connection_settings': {
-                'host': 'localhost',
-                'port': 5672,
-                'virtual_host': '/',
-                'username': 'guest',
-                'password': 'guest',
-            }
-        }
         self.local_rpcserver = reload(rpcserver)
 
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
         self.rabbit_consumer = mock.MagicMock()
         self.local_rpcserver.consumer.Consumer = mock.MagicMock(return_value=self.rabbit_consumer)
 
-        self.server = self.local_rpcserver.RPCServer(mq_config)
+        self.server = self.local_rpcserver.RPCServer(CONFIG)
         self.server.run()
         self.server.stop()
     #---
@@ -263,7 +254,7 @@ class Test_provide_definitions(object):
 
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
 
-        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
+        self.server = self.local_rpcserver.RPCServer(CONFIG)
         self.server.definitions = self.definition
         self.server.definitions_hash = self.hash
     #---
@@ -301,7 +292,7 @@ class Test_current_hash(object):
 
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
 
-        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
+        self.server = self.local_rpcserver.RPCServer(CONFIG)
         self.server.definitions_hash = self.hash
     #---
 
@@ -352,7 +343,7 @@ class Test__validate_request_structure(object):
 
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
 
-        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
+        self.server = self.local_rpcserver.RPCServer(CONFIG)
     #---
 
     def test_RaisesErrorIfCallNameNotDefined(self):
@@ -543,7 +534,7 @@ class Test__validate_call(object):
             }
         }
 
-        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
+        self.server = self.local_rpcserver.RPCServer(CONFIG)
         self.server._module_map['sys'] = 'sys'
     #---
 
@@ -677,7 +668,7 @@ class Test__encode_result(object):
 
         self.local_rpcserver.logging = mock.MagicMock()
 
-        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
+        self.server = self.local_rpcserver.RPCServer(CONFIG)
     #---
 
     def test_IncludesResult(self):
@@ -762,7 +753,7 @@ class Test__rabbit_callback(object):
 
         self.local_rpcserver.logging.getLogger = mock.MagicMock()
 
-        self.server = self.local_rpcserver.RPCServer(MQ_CONFIG)
+        self.server = self.local_rpcserver.RPCServer(CONFIG)
     #---
 
     def test_RaisesInvalidMessageErrorIfBodyCantBeDecoded(self):

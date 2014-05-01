@@ -129,10 +129,7 @@ class RPCServer(object):
         Runs the RabbitMQ consumer
 
         """
-        # TODO: Fix this after the consumer constructor is refactored
-        self.rabbit_consumer = consumer.Consumer(self._rabbit_callback, self.config['rabbitmq']['queue_name'],
-                                                 self.config['rabbitmq']['exchange'],
-                                                 self.config['rabbitmq']['connection_settings'])
+        self.rabbit_consumer = consumer.Consumer(self._rabbit_callback, self.config['rabbitmq'])
 
         self.rabbit_consumer.run()
     #---
@@ -240,7 +237,7 @@ class RPCServer(object):
                 raise AuthenticationError(reason)
 
         # Provide a _very_ basic shared-secret-type auth natively, just as a convenience
-        elif call_request['credentials'] and self.config['shared_secret']:
+        elif 'credentials' in call_request and 'shared_secret' in  self.config:
             if self.config['shared_secret'] != call_request['credentials']:
                 raise AuthenticationError('Shared secret does not match')
     #---
