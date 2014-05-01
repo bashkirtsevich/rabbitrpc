@@ -41,53 +41,38 @@ class Consumer(object):
     Implements a consumer for RabbitMQ (with callbacks)
 
     """
-    channel = None
-    connection = None
-    connection_settings = {
-        'host': 'localhost',
-        'port': 5672,
-        'virtual_host': '/',
+    config = {
+        'queue_name': 'rabbitrpc',
+        'exchange': '',
+        'reply_timeout': 5, # Floats are ok
+
+        'connection_settings': {
+            'host': 'localhost',
+            'port': 5672,
+            'virtual_host': '/',
+            'username': 'guest',
+            'password': 'guest',
+        }
     }
-    exchange = ''
-    log = None
-    queue = None
-    dead_letter_queue = None
-    rabbit = None
-    callback = None
 
 
-    def __init__(self, callback, queue_name = 'rabbitrpc', exchange='', connection_settings = None):
+    def __init__(self, callback, rabbit_config = None):
         """
         Constructor
 
-        :param callback: The method to call when the server receives and incoming RPC request.
-        :type callback: function
-        :param queue_name: Queue to connect to on the RabbitMQ server
-        :type queue_name: str
-        :param connection_settings: RabbitMQ connection configuration parameters.  These are the same parameters that
-            are passed to the ConnectionParameters class in pika, minus 'credentials', which is created for you,
-            provided that you provide both 'username' and 'password' values in the dict.
-            See: http://pika.readthedocs.org/en/0.9.8/connecting.html#connectionparameters
-        :type connection_settings: dict
+        :param rabbit_config: The RabbitMQ config. See
+            https://github.com/nwhalen/rabbitrpc/wiki/Data-Structure-Defintions for details.
+        :type rabbit_config: dict
 
         """
         self.log = logging.getLogger('rabbitmq.consumer')
         self.callback = callback
-        self.queue = queue_name
-        self.dead_letter_queue = '%s-dead-messages' % queue_name
-        self.exchange = exchange
 
-        if connection_settings:
-            self.connection_settings = connection_settings
+        if rabbit_config:
+            self.config.update(rabbit_config)
 
-        if 'username' and 'password' in self.connection_settings:
+        if 'username' and 'password' in self.config['connection_settings']:
             self._createCredentials()
-
-        # Remove the original auth values
-        if 'username' in self.connection_settings:
-            del self.connection_settings['username']
-        if 'password' in self.connection_settings:
-            del self.connection_settings['password']
 
         self._configureConnection()
     #---
@@ -116,11 +101,11 @@ class Consumer(object):
         callback returned.
 
         :param ch: Channel
-        :type ch: object
+        :type ch: pika.channel.Channel
         :param method: Method from the consumer callback
-        :type method: object
+        :type method: pika.amqp_object.Method
         :param props: Properties from the consumer callback
-        :type props: object
+        :type props: pika.amqp_object.Properties
         """
         try:
             callback_response = self.callback(body)
@@ -144,8 +129,8 @@ class Consumer(object):
         if hasattr(props, 'reply_to'):
             pub_props = pika.BasicProperties(delivery_mode=2, correlation_id=props.correlation_id)
 
-            self.channel.basic_publish(exchange=self.exchange, routing_key=props.reply_to, properties=pub_props,
-                                       body=callback_response)
+            self.channel.basic_publish(exchange=self.config['exchange'], routing_key=props.reply_to,
+                                       properties=pub_props, body=callback_response)
 
         # Tell Rabbit we're done processing the message
         self.channel.basic_ack(delivery_tag=method.delivery_tag)
@@ -162,10 +147,10 @@ class Consumer(object):
             raise ConnectionError('Failed to connect to RabbitMQ server: %s' %error)
 
         self.channel = self.connection.channel()
-        self.channel.queue_declare(queue=self.queue, durable=True)
+        self.channel.queue_declare(queue=self.config['queue_name'], durable=True)
 
         self.channel.basic_qos(prefetch_count=1)
-        self.channel.basic_consume(self._consumerCallback, queue=self.queue)
+        self.channel.basic_consume(self._consumerCallback, queue=self.config['queue_name'])
     #---
 
     def _configureConnection(self):
@@ -173,7 +158,7 @@ class Consumer(object):
         Sets up the connection information.
 
         """
-        self.connection_params = pika.ConnectionParameters(**self.connection_settings)
+        self.connection_params = pika.ConnectionParameters(**self.config['connection_settings'])
     #---
 
     def _createCredentials(self):
@@ -181,7 +166,8 @@ class Consumer(object):
         Creates a PlainCredentials class for use by ConnectionParameters.
 
         """
-        creds = pika.PlainCredentials(self.connection_settings['username'], self.connection_settings['password'])
-        self.connection_settings.update({'credentials': creds})
+        creds = pika.PlainCredentials(self.config['connection_settings']['username'],
+                                      self.config['connection_settings']['password'])
+        self.config['connection_settings'].update({'credentials': creds})
     #---
 #---

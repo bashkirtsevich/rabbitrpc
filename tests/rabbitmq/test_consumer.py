@@ -40,29 +40,37 @@ class Test___init__(object):
         :param method:
 
         """
-        self.host = 'hostname'
-        self.port = 1234
-        self.vhost = 'b/b'
-
-        self.connection_settings = {
-            'host': self.host,
-            'port': self.port,
-            'virtual_host': self.vhost,
-        }
-        self.default_settings = {
-            'host': 'localhost',
-            'port': 5672,
-            'virtual_host': '/',
-        }
         self.localrpc = reload(consumer)
 
-
         self.callback = mock.MagicMock()
-        self.queue = 'testRPC'
         self.localrpc.Consumer._configureConnection = mock.MagicMock()
         self.localrpc.logging = mock.MagicMock()
 
-        self.rpc = self.localrpc.Consumer(self.callback, self.queue)
+        self.rpc = self.localrpc.Consumer(self.callback)
+    #---
+
+    def test_UpdatesConfigWithProvidedDict(self):
+        """
+        Tests that __init__ updates the config with the provided dictionary
+
+        """
+        config = {
+            'queue_name': 'rabbitrpc1',
+            'exchange': 'bob',
+            'reply_timeout': 1, # Floats are ok
+
+            'connection_settings': {
+                'host': 'localhost23',
+                'port': 56722,
+                'virtual_host': '/bob',
+                'username': 'bob',
+                'password': 'barker',
+            }
+         }
+
+        rpc = self.localrpc.Consumer(lambda: None, config)
+
+        assert rpc.config == config
     #---
 
     def test_SetsUpLogger(self):
@@ -82,72 +90,13 @@ class Test___init__(object):
         assert self.rpc.callback == self.callback
     #---
 
-    def test_SetsQueueName(self):
-        """
-        Tests that __init__ sets the incoming rpc queue.
-
-        """
-        assert self.rpc.queue == self.queue
-    #---
-
-    def test_SetsDefaultConnectionSettings(self):
-        """
-        Tests that __init__ sets the following default config:
-            host: localhost
-            port: 5672
-            virtual_host: /
-
-        """
-        assert self.rpc.connection_settings == self.default_settings
-    #---
-
-    def test_ProvidedConnectionSettingsOverrideDefaultConnectionSettings(self):
-        """
-        Tests that __init__ overrides the default connection settings if they are provided by the user.
-
-        """
-        rpc = self.localrpc.Consumer(self.callback, self.queue, connection_settings=self.connection_settings)
-        assert rpc.connection_settings == self.connection_settings
-    #---
-
-    def test_RemovesUsernameFromConnectionSettings(self):
-        """
-        Tests that __init__ removes the username from the connection settings.
-
-        """
-        rpc = self.localrpc.Consumer(self.callback, self.queue, connection_settings=self.connection_settings)
-        assert 'username' not in rpc.connection_settings
-    #---
-
-    def test_RemovesPasswordFromConnectionSettings(self):
-        """
-        Tests that __init__ removes the password from the connection settings.
-
-        """
-        rpc = self.localrpc.Consumer(self.callback, self.queue, connection_settings=self.connection_settings)
-        assert 'password' not in rpc.connection_settings
-    #---
-
-    def test_SetsExchangeToProvidedParamIfExists(self):
-        """
-        Tests that __init__ sets the exchange to what was passed in, if something was passed in.
-
-        """
-        exchange = 'BobXchange'
-        rpc = consumer.Consumer(self.callback, self.queue, exchange)
-
-        assert rpc.exchange == exchange
-    #---
 
     def test_DefaultExchangeIsBlankString(self):
         """
         Tests that __init__ sets the default exchange to '' if an exchange was not passed in.
 
         """
-        exchange = ''
-        rpc = consumer.Consumer(self.callback, self.queue)
-
-        assert rpc.exchange == exchange
+        assert self.rpc.config['exchange'] is ''
     #---
 
     def test_CallsConnectionSetup(self):
@@ -172,10 +121,9 @@ class Test_stop(object):
 
         """
         localrpc = reload(consumer)
-        self.callback = mock.MagicMock()
         localrpc.Consumer._configureConnection = mock.MagicMock()
 
-        self.rpc = localrpc.Consumer(self.callback, '')
+        self.rpc = localrpc.Consumer(lambda: None)
         self.rpc.channel = mock.MagicMock()
 
         self.rpc.stop()
@@ -211,10 +159,9 @@ class Test_run(object):
 
         """
         localrpc = reload(consumer)
-        self.callback = mock.MagicMock()
         localrpc.Consumer._configureConnection = mock.MagicMock()
 
-        self.rpc = localrpc.Consumer(self.callback, '')
+        self.rpc = localrpc.Consumer(lambda: None)
         self.rpc._connect = mock.MagicMock()
         self.rpc.channel = mock.MagicMock()
 
@@ -263,9 +210,9 @@ class Test__consumerCallback(object):
         self.BasicProperties = self.localrpc.pika.BasicProperties
 
         # Initialize class and mock methods/properties
-        self.rpc = self.localrpc.Consumer(self.callback, '')
+        self.rpc = self.localrpc.Consumer(self.callback)
         self.rpc.channel = mock.MagicMock()
-        self.rpc.exchange = self.exchange
+        self.rpc.config['exchange'] = self.exchange
         self.method = mock.MagicMock()
         self.props = mock.MagicMock()
 
@@ -416,10 +363,8 @@ class Test__connect(object):
 
         """
         self.connection_params = {'none':None}
-        self.queue = 'daQueue'
 
         localrpc = reload(consumer)
-        self.callback = mock.MagicMock()
         localrpc.Consumer._configureConnection = mock.MagicMock()
 
         self.channel = mock.MagicMock()
@@ -428,7 +373,7 @@ class Test__connect(object):
         localrpc.pika.BlockingConnection = mock.MagicMock(return_value=self.connection)
         self.BlockingConnection = localrpc.pika.BlockingConnection
 
-        self.rpc = localrpc.Consumer(self.callback, self.queue)
+        self.rpc = localrpc.Consumer(lambda: None)
         self.rpc.connection_params = self.connection_params
 
         self.rpc._connect()
@@ -466,7 +411,7 @@ class Test__connect(object):
         Tests that _connect declares a durable queue.
 
         """
-        self.channel.queue_declare.assert_called_once_with(queue=self.queue, durable=True)
+        self.channel.queue_declare.assert_called_once_with(queue=self.rpc.config['queue_name'], durable=True)
     #---
 
     def test_SetsQoSPrefetchCount(self):
@@ -482,7 +427,8 @@ class Test__connect(object):
         Tests that _connect sets up the consumer with the callback and queue name.
 
         """
-        self.channel.basic_consume.assert_called_once_with(self.rpc._consumerCallback, queue=self.rpc.queue)
+        self.channel.basic_consume.assert_called_once_with(self.rpc._consumerCallback,
+                                                           queue=self.rpc.config['queue_name'])
     #---
 #---
 
@@ -498,22 +444,16 @@ class Test__configureConnection(object):
         :param method:
 
         """
-        self.host = 'hostname'
-        self.port = 1234
-        self.vhost = 'b/b'
-
-        self.connection_settings = {
-            'host': self.host,
-            'port': self.port,
-            'virtual_host': self.vhost,
+        self.connection_params = {
+            'host': 'hostname',
+            'port': 1234,
+            'virtual_host': '/',
         }
         self.localrpc = reload(consumer)
 
-        self.localrpc.pika.ConnectionParameters = mock.MagicMock(return_value=self.connection_settings)
+        self.localrpc.pika.ConnectionParameters = mock.MagicMock(return_value=self.connection_params)
 
-
-        self.callback = mock.MagicMock()
-        self.rpc = self.localrpc.Consumer(self.callback, '', connection_settings=self.connection_settings)
+        self.rpc = self.localrpc.Consumer(lambda: None)
     #---
 
     def test_SetsConnectionParameters(self):
@@ -521,7 +461,7 @@ class Test__configureConnection(object):
         Tests that _configureConnection sets the class' connection parameters.
 
         """
-        assert self.rpc.connection_settings == self.connection_settings
+        assert self.rpc.connection_params == self.connection_params
     #---
 #---
 
@@ -541,10 +481,6 @@ class Test__createCredentials(object):
         self.password = 'barker'
         self.creds = {self.username:self.password}
 
-        self.connection_settings = {
-            'username': self.username,
-            'password': self.password,
-        }
         localrpc = reload(consumer)
 
         localrpc.pika.PlainCredentials = mock.MagicMock(return_value=self.creds)
@@ -552,9 +488,10 @@ class Test__createCredentials(object):
 
         localrpc.Consumer._configureConnection = mock.MagicMock()
 
-        self.callback = mock.MagicMock()
         # Calls _createCredentials if username and password are set
-        self.rpc = localrpc.Consumer(self.callback, '', connection_settings=self.connection_settings)
+        localrpc.Consumer.config['connection_settings']['username'] = self.username
+        localrpc.Consumer.config['connection_settings']['password'] = self.password
+        self.rpc = localrpc.Consumer(lambda: None)
     #---
 
     def test_CreatesPlainCredentialsObject(self):
@@ -571,6 +508,6 @@ class Test__createCredentials(object):
         Tests that _createCredentials sets the credentials in the connection config to the PlainCredentials object.
 
         """
-        assert self.rpc.connection_settings['credentials'] == self.creds
+        assert self.rpc.config['connection_settings']['credentials'] == self.creds
     #---
 #---
